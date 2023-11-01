@@ -12,13 +12,13 @@ type LevelState = typeof initial_state;
 let initial_state = {
   size: new Vec2(13, 13),
   holes: holesFromAscii(`
-......00.....
-......00.....
-......00.....
-......00.....
 ......01.....
 ......01.....
 ......01.....
+......01.....
+......01.....
+......00.....
+......00.....
 ......0000000
 .........0...
 .........0...
@@ -55,8 +55,9 @@ let turn_anim_duration = .1;
 const TILE_SIZE = 40;
 
 let sprites = {
-  holes: [
+  floors: [
     // hole sprites are 1x1 pixel sized
+    canvasFromAscii(["#E6E6EC"], '0'),
     canvasFromAscii(["#A6A6BF"], '0'),
     canvasFromAscii(["#535373"], '0'),
   ],
@@ -316,22 +317,24 @@ function every_frame(cur_timestamp: number) {
   // animation progress
   remaining_anim_t = towards(remaining_anim_t, 0, delta_time / turn_anim_duration);
 
-  // draw level
-  ctx.fillStyle = "#E6E6EC";
-  ctx.fillRect(0,0,TILE_SIZE * cur_state.size.x,TILE_SIZE * cur_state.size.y);
-  for (let height = 0; height < cur_state.player.layer; height++) {
-    cur_state.holes[height].forEachV((pos, asdf) => {
-      if (asdf) {
-        drawSprite(sprites.holes[height], pos);
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  
+  let bottommost = true;
+  for (let floor_drop = cur_state.player.layer; floor_drop >= 0; floor_drop--) {
+    cur_state.holes[floor_drop].forEachV((pos, is_hole) => {
+      let draw_floor = bottommost || !is_hole;
+      if (draw_floor) {
+        drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
       }
     });
+    bottommost = false;
   }
   if (cur_state.player.layer > 0) {
     drawSprite(sprites.upstairs, cur_state.downstairs_pos[cur_state.player.layer - 1]);
   }
   drawSprite(sprites.downstairs, cur_state.downstairs_pos[cur_state.player.layer]);
   drawSprite(sprites.magenta_crate, cur_state.magenta_crate_pos);
-  drawSprite(sprites.player, cur_state.player.pos);
+  drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
 
   // cur_state.walls.forEachV((pos, is_wall) => drawSprite(is_wall ? sprites.wall : sprites.background, pos));
   // cur_state.targets.forEach(pos => drawSprite(sprites.target, pos));
@@ -351,6 +354,15 @@ function every_frame(cur_timestamp: number) {
   // }
 
   requestAnimationFrame(every_frame);
+}
+
+function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, drop: number) {
+  let D = 50;
+  let scale = D / (drop + D);
+  let top_left_corner = Vec2.sub(pos, eye_pos).scale(scale).add(eye_pos);
+  ctx.drawImage(sprite,
+    top_left_corner.x * TILE_SIZE, top_left_corner.y * TILE_SIZE,
+    Math.ceil(TILE_SIZE * scale), Math.ceil(TILE_SIZE * scale));
 }
 
 function drawSprite(sprite: HTMLCanvasElement, { x, y }: Vec2) {
