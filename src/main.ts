@@ -63,7 +63,7 @@ let sprites = {
       .000.
       22122
       .212.
-      .202.
+      .2.2.
     `
   ),
   magenta_crate: canvasFromAscii(
@@ -84,6 +84,16 @@ let sprites = {
       22222
       33333
       44444
+    `
+  ),
+  upstairs: canvasFromAscii(
+    ["#C1C1D2"],
+    `
+      ..0..
+      .0.0.
+      0...0
+      ..0..
+      ..0..
     `
   )
 }
@@ -133,7 +143,6 @@ const key_mappings = {
   "down": [KeyCode.ArrowDown, KeyCode.KeyS],
   "right": [KeyCode.ArrowRight, KeyCode.KeyD],
   "left": [KeyCode.ArrowLeft, KeyCode.KeyA],
-  "prev_layer": [KeyCode.Space],
 };
 
 type PlayerAction = keyof typeof key_mappings;
@@ -151,18 +160,20 @@ function findDropAt(pos: Vec2, max_layer: number, hole_above: Grid2D<boolean>[])
 
 // Our whole game logic lives inside this function
 function advanceState(old_state: LevelState, player_action: PlayerAction): LevelState | null {
-  if (player_action === "prev_layer") {
-    if (old_state.player.layer === 0) return null;
+  let player_move = DIRS[player_action];
+  let new_player_pos = old_state.player.pos.add(player_move, new Vec2());
+  if (!Vec2.inBounds(new_player_pos, old_state.size)) return null;
+
+  // go upstairs
+  if (old_state.player.layer > 0 && old_state.downstairs_pos[old_state.player.layer - 1].equals(new_player_pos)) {
     let new_state = cloneLevelState(old_state);
+    new_state.player.pos = new_player_pos;
     new_state.player.layer -= 1;
     new_state.player.drop = 0; // TODO: bug here
     return new_state;
   }
 
-  let player_move = DIRS[player_action];
-  let new_player_pos = old_state.player.pos.add(player_move, new Vec2());
-  if (!Vec2.inBounds(new_player_pos, old_state.size)) return null;
-
+  // go downstairs
   if (new_player_pos.equals(old_state.downstairs_pos[old_state.player.layer])) {
     let new_state = cloneLevelState(old_state);
     new_state.player.pos = new_player_pos;
@@ -302,6 +313,9 @@ function every_frame(cur_timestamp: number) {
         drawSprite(sprites.floors[height], pos);
       }
     });
+  }
+  if (cur_state.player.layer > 0) {
+    drawSprite(sprites.upstairs, cur_state.downstairs_pos[cur_state.player.layer - 1]);
   }
   drawSprite(sprites.downstairs, cur_state.downstairs_pos[cur_state.player.layer]);
   drawSprite(sprites.magenta_crate, cur_state.magenta_crate_pos);
