@@ -2,7 +2,7 @@
 
 import { Grid2D } from "./kommon/grid2D";
 import { Input, KeyCode } from "./kommon/input";
-import { zip2 } from "./kommon/kommon";
+import { fromCount, zip2 } from "./kommon/kommon";
 import { Vec2, mod, towards } from "./kommon/math";
 import { canvasFromAscii } from "./kommon/spritePS";
 
@@ -11,25 +11,21 @@ type LevelState = typeof initial_state;
 
 let initial_state = {
   size: new Vec2(13, 13),
-  // 0 is the "plainest" layer
-  hole_above: [
-    Grid2D.initV(new Vec2(13, 13), _ => true),
-    Grid2D.fromAscii(`
-......##.....
-......##.....
-......##.....
-......##.....
-......##.....
-......##.....
-......##.....
-......#######
-.........#...
-.........#...
-.........#...
-.........#...
-.........#...
-    `).map((_, c) => c !== '.'),
-  ],
+  holes: holesFromAscii(`
+......00.....
+......00.....
+......00.....
+......00.....
+......01.....
+......01.....
+......01.....
+......0000000
+.........0...
+.........0...
+.........0...
+.........0...
+.........0...
+  `),
   magenta_crate_pos: new Vec2(10, 4),
   player: {
     layer: 0,
@@ -39,8 +35,16 @@ let initial_state = {
   downstairs_pos: [
     new Vec2(2, 4),
     new Vec2(11, 11),
+    new Vec2(4, 4),
   ],
 };
+
+function holesFromAscii(ascii: string): Grid2D<boolean>[] {
+  let data = Grid2D.fromAscii(ascii);
+  return fromCount(9, k => {
+    return data.map((_, char) => char !== '.' && Number(char) >= k);
+  })
+}
 
 let state_history = [initial_state];
 
@@ -51,10 +55,10 @@ let turn_anim_duration = .1;
 const TILE_SIZE = 40;
 
 let sprites = {
-  floors: [
-    // floor sprites are 1x1 pixel sized
-    canvasFromAscii(["#E6E6EC"], '0'),
+  holes: [
+    // hole sprites are 1x1 pixel sized
     canvasFromAscii(["#A6A6BF"], '0'),
+    canvasFromAscii(["#535373"], '0'),
   ],
   player: canvasFromAscii(
     ["#C1C1D2", "#8080A4", "#333346"],
@@ -127,7 +131,7 @@ function getPressed<T extends Record<string, KeyCode[]>>(button_map: T): keyof T
 function cloneLevelState(old_state: LevelState): LevelState {
   return {
     size: old_state.size,
-    hole_above: old_state.hole_above,
+    holes: old_state.holes,
     magenta_crate_pos: old_state.magenta_crate_pos.copyTo(),
     player: {
       layer: old_state.player.layer,
@@ -147,16 +151,18 @@ const key_mappings = {
 
 type PlayerAction = keyof typeof key_mappings;
 
-function findDropAt(pos: Vec2, max_layer: number, hole_above: Grid2D<boolean>[]): number {
+function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): number {
   let cur_drop = 0;
   while (cur_drop < max_layer) {
-    if (!hole_above[cur_drop + 1].getV(pos)) {
+    if (!holes[cur_drop].getV(pos)) {
       break;
     }    
     cur_drop += 1;
   }
   return cur_drop;
 }
+
+// TODO: key repeat, animation
 
 // Our whole game logic lives inside this function
 function advanceState(old_state: LevelState, player_action: PlayerAction): LevelState | null {
@@ -179,10 +185,14 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
     new_state.player.pos = new_player_pos;
     new_state.player.layer += 1;
     new_state.player.drop = 0;
+    if (new_state.player.layer >= old_state.downstairs_pos.length) {
+      // TODO: END GAME
+      return null;
+    }
     return new_state;
   }
 
-  let new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.hole_above);
+  let new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
   if (new_player_drop < old_state.player.drop) return null; // player can't move up
   if (!new_player_pos.equals(old_state.magenta_crate_pos)) {
     // Simple case: player moving around far from the crate
@@ -192,12 +202,12 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
     return new_state;
   } else {
     // is the player pushing the crate or standing on it?
-    let magenta_crate_drop = findDropAt(old_state.magenta_crate_pos, old_state.player.layer, old_state.hole_above);
+    let magenta_crate_drop = findDropAt(old_state.magenta_crate_pos, old_state.player.layer, old_state.holes);
     if (magenta_crate_drop === old_state.player.drop) {
       // player is pushing the crate
       let new_magenta_crate_pos = old_state.magenta_crate_pos.add(player_move, new Vec2());
       if (!Vec2.inBounds(new_magenta_crate_pos, old_state.size)) return null;
-      let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.hole_above);
+      let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.holes);
       if (new_magenta_crate_drop < old_state.player.drop) return null; // player can't push the crate up
       let new_state = cloneLevelState(old_state);
       new_state.magenta_crate_pos = new_magenta_crate_pos;
@@ -307,10 +317,12 @@ function every_frame(cur_timestamp: number) {
   remaining_anim_t = towards(remaining_anim_t, 0, delta_time / turn_anim_duration);
 
   // draw level
-  for (let height = 0; height <= cur_state.player.layer; height++) {
-    cur_state.hole_above[height].forEachV((pos, asdf) => {
+  ctx.fillStyle = "#E6E6EC";
+  ctx.fillRect(0,0,TILE_SIZE * cur_state.size.x,TILE_SIZE * cur_state.size.y);
+  for (let height = 0; height < cur_state.player.layer; height++) {
+    cur_state.holes[height].forEachV((pos, asdf) => {
       if (asdf) {
-        drawSprite(sprites.floors[height], pos);
+        drawSprite(sprites.holes[height], pos);
       }
     });
   }
