@@ -29,6 +29,12 @@ let initial_state = {
   magenta_1: {
     pos: new Vec2(10, 4),
   },
+  magenta_2: {
+    top_left: new Vec2(3, 3),
+    horizontal: true,
+    length: 7,
+    offset: 0,
+  },
   player: {
     layer: 0,
     drop: 0, // inverse of height
@@ -39,7 +45,7 @@ let initial_state = {
     new Vec2(11, 11),
     new Vec2(4, 4),
   ],
-  max_visited_layer: 0,
+  max_visited_layer: 2,
 };
 
 function holesFromAscii(ascii: string): Grid2D<boolean>[] {
@@ -74,16 +80,6 @@ let sprites = {
       .2.2.
     `
   ),
-  magenta_crate: canvasFromAscii(
-    ["#FF00FF"],
-    `
-      00000
-      0...0
-      0...0
-      0...0
-      00000
-    `
-  ),
   downstairs: canvasFromAscii(
     ["#E6E6EC", "#C1C1D2", "#8080A4", "#333346", "#0E0E12"],
     `
@@ -103,7 +99,47 @@ let sprites = {
       ..0..
       ..0..
     `
-  )
+  ),
+  magenta_crate: canvasFromAscii(
+    ["#FF00FF"],
+    `
+      00000
+      0...0
+      0...0
+      0...0
+      00000
+    `
+  ),
+  magenta_wire_h: canvasFromAscii(
+    ["#FF00FF"],
+    `
+      .....
+      .....
+      0.0.0
+      .....
+      .....
+    `
+  ),
+  magenta_wire_left: canvasFromAscii(
+    ["#FF00FF"],
+    `
+      .....
+      .0...
+      .00.0
+      .0...
+      .....
+    `
+  ),
+  magenta_wire_right: canvasFromAscii(
+    ["#FF00FF"],
+    `
+      .....
+      ...0.
+      0.00.
+      ...0.
+      .....
+    `
+  ),
 }
 
 const input = new Input();
@@ -139,6 +175,12 @@ function cloneLevelState(old_state: LevelState): LevelState {
     magenta_1: {
       pos: old_state.magenta_1.pos.copyTo(),
     },
+    magenta_2: {
+      horizontal: old_state.magenta_2.horizontal,
+      top_left: old_state.magenta_2.top_left,
+      length: old_state.magenta_2.length,
+      offset: old_state.magenta_2.offset,
+    },
     player: {
       layer: old_state.player.layer,
       drop: old_state.player.drop,
@@ -163,7 +205,7 @@ function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): num
   while (cur_drop < max_layer) {
     if (!holes[cur_drop].getV(pos)) {
       break;
-    }    
+    }
     cur_drop += 1;
   }
   return cur_drop;
@@ -201,45 +243,59 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
   }
 
   let new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
-  if (new_player_drop < old_state.player.drop) return null; // player can't move up
 
-  if (old_state.max_visited_layer === 0) {
-    // No magenta objects
-    let new_state = cloneLevelState(old_state);
-    new_state.player.pos = new_player_pos;
-    new_state.player.drop = new_player_drop;
-    return new_state;
-  }
+  // TODO: interactions between mechanics
 
-  if (!new_player_pos.equals(old_state.magenta_1.pos)) {
-    // Simple case: player moving around far from the crate
-    let new_state = cloneLevelState(old_state);
-    new_state.player.pos = new_player_pos;
-    new_state.player.drop = new_player_drop;
-    return new_state;
-  } else {
-    // is the player pushing the crate or standing on it?
-    let magenta_crate_drop = findDropAt(old_state.magenta_1.pos, old_state.player.layer, old_state.holes);
-    if (magenta_crate_drop === old_state.player.drop) {
-      // player is pushing the crate
-      let new_magenta_crate_pos = old_state.magenta_1.pos.add(player_move, new Vec2());
-      if (!Vec2.inBounds(new_magenta_crate_pos, old_state.size)) return null;
-      let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.holes);
-      if (new_magenta_crate_drop < old_state.player.drop) return null; // player can't push the crate up
-      let new_state = cloneLevelState(old_state);
-      new_state.magenta_1.pos = new_magenta_crate_pos;
-      new_state.player.pos = new_player_pos;
-      return new_state;
-    } else {
-      // player is standing on the crate
-      console.log("hola");
-      let new_state = cloneLevelState(old_state);
-      new_state.player.pos = new_player_pos;
-      new_state.player.drop = magenta_crate_drop - 1;
-      return new_state;
+  if (old_state.max_visited_layer >= 2) {
+    // mechanic 2: rail
+    if (!old_state.magenta_2.horizontal) throw new Error("unimplemented");
+    let old_rail_pos = new Vec2(old_state.magenta_2.offset, 0).add(old_state.magenta_2.top_left);
+    if (old_state.player.pos.equals(old_rail_pos)) {
+      if (player_move.y === 0) {
+        let new_offset = old_state.magenta_2.offset + player_move.x;
+        if (new_offset >= 0 && new_offset < old_state.magenta_2.length) {
+          let new_state = cloneLevelState(old_state);
+          new_state.magenta_2.offset = new_offset;
+          new_state.player.pos = new_player_pos;
+          new_state.player.drop = 0;
+          return new_state;
+        }
+      }
     }
   }
-  return null;
+
+  if (old_state.max_visited_layer >= 1) {
+    // mechanic 1: crate
+    if (new_player_pos.equals(old_state.magenta_1.pos)) {
+      // is the player pushing the crate or standing on it?
+      let magenta_crate_drop = findDropAt(old_state.magenta_1.pos, old_state.player.layer, old_state.holes);
+      if (magenta_crate_drop === old_state.player.drop) {
+        // player is pushing the crate
+        let new_magenta_crate_pos = old_state.magenta_1.pos.add(player_move, new Vec2());
+        if (!Vec2.inBounds(new_magenta_crate_pos, old_state.size)) return null;
+        let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.holes);
+        if (new_magenta_crate_drop < old_state.player.drop) return null; // player can't push the crate up
+        let new_state = cloneLevelState(old_state);
+        new_state.magenta_1.pos = new_magenta_crate_pos;
+        new_state.player.pos = new_player_pos;
+        return new_state;
+      } else {
+        // player is standing on the crate
+        console.log("hola");
+        let new_state = cloneLevelState(old_state);
+        new_state.player.pos = new_player_pos;
+        new_state.player.drop = magenta_crate_drop - 1;
+        return new_state;
+      }
+    }
+  }
+
+  if (new_player_drop < old_state.player.drop) return null; // player can't move up
+
+  let new_state = cloneLevelState(old_state);
+  new_state.player.pos = new_player_pos;
+  new_state.player.drop = new_player_drop;
+  return new_state;
 
   // let magenta_crate_drop = findDropAt(old_state.magenta_crate_pos, old_state.player.layer, old_state.hole_above);
   // // if standing on the crate, add 1 height
@@ -333,8 +389,8 @@ function every_frame(cur_timestamp: number) {
   // animation progress
   remaining_anim_t = towards(remaining_anim_t, 0, delta_time / turn_anim_duration);
 
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
   let bottommost = true;
   for (let floor_drop = cur_state.player.layer; floor_drop >= 0; floor_drop--) {
     cur_state.holes[floor_drop].forEachV((pos, is_hole) => {
@@ -351,6 +407,15 @@ function every_frame(cur_timestamp: number) {
   drawSprite(sprites.downstairs, cur_state.downstairs_pos[cur_state.player.layer]);
   if (cur_state.max_visited_layer >= 1) {
     drawSprite(sprites.magenta_crate, cur_state.magenta_1.pos);
+  }
+  if (cur_state.max_visited_layer >= 2) {
+    if (!cur_state.magenta_2.horizontal) throw new Error("unimplemented");
+    drawSprite(sprites.magenta_wire_left, cur_state.magenta_2.top_left);
+    for (let k = 1; k + 1 < cur_state.magenta_2.length; k++) {
+      drawSprite(sprites.magenta_wire_h, new Vec2(k, 0).add(cur_state.magenta_2.top_left));
+    }
+    drawSprite(sprites.magenta_wire_right, new Vec2(cur_state.magenta_2.length - 1, 0).add(cur_state.magenta_2.top_left));
+    drawSprite(sprites.magenta_crate, new Vec2(cur_state.magenta_2.offset, 0).add(cur_state.magenta_2.top_left));
   }
   drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
 
