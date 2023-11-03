@@ -16,8 +16,8 @@ let initial_state = {
 ......01.....
 ......01.....
 ......01.....
-......01.....
-......00.....
+......21.....
+......20.....
 ......00.....
 ......0000000
 .........0...
@@ -35,6 +35,10 @@ let initial_state = {
     length: 7,
     offset: 0,
   },
+  magenta_3: {
+    exit_pos: new Vec2(3, 6),
+    entry_pos: new Vec2(5, 1),
+  },
   player: {
     layer: 0,
     drop: 0, // inverse of height
@@ -44,8 +48,9 @@ let initial_state = {
     new Vec2(2, 4),
     new Vec2(11, 11),
     new Vec2(4, 4),
+    new Vec2(0, 0),
   ],
-  max_visited_layer: 2,
+  max_visited_layer: 0,
 };
 
 function holesFromAscii(ascii: string): Grid2D<boolean>[] {
@@ -69,6 +74,7 @@ let sprites = {
     canvasFromAscii(["#E6E6EC"], '0'),
     canvasFromAscii(["#A6A6BF"], '0'),
     canvasFromAscii(["#535373"], '0'),
+    canvasFromAscii(["#333346"], '0'),
   ],
   player: canvasFromAscii(
     ["#C1C1D2", "#8080A4", "#333346"],
@@ -140,6 +146,26 @@ let sprites = {
       .....
     `
   ),
+  magenta_exit: canvasFromAscii(
+    ["#FF00FF"],
+    `
+      .000.
+      00000
+      00000
+      00000
+      .000.
+    `
+  ),
+  magenta_entry: canvasFromAscii(
+    ["#FF00FF"],
+    `
+      .....
+      .000.
+      .0.0.
+      .000.
+      .....
+    `
+  ),
 }
 
 const input = new Input();
@@ -180,6 +206,10 @@ function cloneLevelState(old_state: LevelState): LevelState {
       top_left: old_state.magenta_2.top_left,
       length: old_state.magenta_2.length,
       offset: old_state.magenta_2.offset,
+    },
+    magenta_3: {
+      entry_pos: old_state.magenta_3.entry_pos.copyTo(),
+      exit_pos: old_state.magenta_3.exit_pos.copyTo(),
     },
     player: {
       layer: old_state.player.layer,
@@ -245,6 +275,34 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
   let new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
 
   // TODO: interactions between mechanics
+  if (old_state.max_visited_layer >= 3) {
+    // mechanic 3: portal
+    if (new_player_pos.equals(old_state.magenta_3.entry_pos)) {
+      new_player_pos.copyFrom(old_state.magenta_3.exit_pos);
+      new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
+      let new_state = cloneLevelState(old_state);
+      new_state.player.pos = new_player_pos;
+      new_state.player.drop = new_player_drop;
+      new_state.magenta_3.entry_pos.copyFrom(old_state.magenta_3.exit_pos);
+      new_state.magenta_3.exit_pos.copyFrom(old_state.magenta_3.entry_pos);
+      return new_state;
+    } else if (new_player_pos.equals(old_state.magenta_3.exit_pos)) {
+      let magenta_crate_drop = findDropAt(old_state.magenta_3.exit_pos, old_state.player.layer, old_state.holes);
+      if (magenta_crate_drop !== old_state.player.drop || old_state.player.drop !== new_player_drop) {
+        // can't stand on portal exit
+        return null;
+      }
+      // player is pushing the crate
+      let new_magenta_crate_pos = old_state.magenta_3.exit_pos.add(player_move, new Vec2());
+      if (!Vec2.inBounds(new_magenta_crate_pos, old_state.size)) return null;
+      let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.holes);
+      if (new_magenta_crate_drop < old_state.player.drop) return null; // player can't push the crate up
+      let new_state = cloneLevelState(old_state);
+      new_state.magenta_3.exit_pos = new_magenta_crate_pos;
+      new_state.player.pos = new_player_pos;
+      return new_state;
+    }
+  }
 
   if (old_state.max_visited_layer >= 2) {
     // mechanic 2: rail
@@ -264,6 +322,8 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
     }
   }
 
+  if (new_player_drop < old_state.player.drop) return null; // player can't move up
+
   if (old_state.max_visited_layer >= 1) {
     // mechanic 1: crate
     if (new_player_pos.equals(old_state.magenta_1.pos)) {
@@ -281,7 +341,6 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
         return new_state;
       } else {
         // player is standing on the crate
-        console.log("hola");
         let new_state = cloneLevelState(old_state);
         new_state.player.pos = new_player_pos;
         new_state.player.drop = magenta_crate_drop - 1;
@@ -289,8 +348,6 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
       }
     }
   }
-
-  if (new_player_drop < old_state.player.drop) return null; // player can't move up
 
   let new_state = cloneLevelState(old_state);
   new_state.player.pos = new_player_pos;
@@ -416,6 +473,10 @@ function every_frame(cur_timestamp: number) {
     }
     drawSprite(sprites.magenta_wire_right, new Vec2(cur_state.magenta_2.length - 1, 0).add(cur_state.magenta_2.top_left));
     drawSprite(sprites.magenta_crate, new Vec2(cur_state.magenta_2.offset, 0).add(cur_state.magenta_2.top_left));
+  }
+  if (cur_state.max_visited_layer >= 3) {
+    drawSprite(sprites.magenta_entry, cur_state.magenta_3.entry_pos);
+    drawSprite(sprites.magenta_exit, cur_state.magenta_3.exit_pos);
   }
   drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
 
