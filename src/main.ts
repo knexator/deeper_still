@@ -275,6 +275,8 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
   let new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
 
   // TODO: interactions between mechanics
+  // among others: magenta 3 and 1 can't overlap 2's rail
+
   if (old_state.max_visited_layer >= 3) {
     // mechanic 3: portal
     if (new_player_pos.equals(old_state.magenta_3.entry_pos)) {
@@ -318,6 +320,12 @@ function advanceState(old_state: LevelState, player_action: PlayerAction): Level
           new_state.player.drop = 0;
           return new_state;
         }
+      }
+    } else {
+      // player can't overlap rails
+      let delta = new_player_pos.sub(old_state.magenta_2.top_left, new Vec2());
+      if (delta.y === 0 && delta.x >= 0 && delta.x < old_state.magenta_2.length && delta.x !== old_state.magenta_2.offset) {
+        return null;
       }
     }
   }
