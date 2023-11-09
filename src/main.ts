@@ -53,9 +53,14 @@ let cur_state = {
   max_visited_layer: 0,
 };
 
-let visual_state: {anims: any[]} = {
+type Anim = {
+  duration: number,
+  progress: number,
+  callback: (t: number, state: LevelState) => void,
+}
+let visual_state = {
   // logic_state: cur_state,
-  anims: [],
+  anims: [] as Anim[],
 }
 
 function holesFromAscii(ascii: string): Grid2D<boolean>[] {
@@ -187,10 +192,23 @@ const DIRS = {
   up: new Vec2(0, -1),
 };
 
-function getPressed<T extends Record<string, KeyCode[]>>(button_map: T): keyof T | null {
-  for (const [action_name, buttons] of Object.entries(button_map)) {
-    if (buttons.some(b => input.keyboard.wasPressed(b))) {
-      return action_name;
+type PlayerAction = "up" | "down" | "left" | "right"
+let input_queue: PlayerAction[] = [];
+
+document.addEventListener("keydown", (ev: KeyboardEvent) => {
+  let action = mapKeyToAction(ev.code, {
+    "up": [KeyCode.ArrowUp, KeyCode.KeyW],
+    "down": [KeyCode.ArrowDown, KeyCode.KeyS],
+    "right": [KeyCode.ArrowRight, KeyCode.KeyD],
+    "left": [KeyCode.ArrowLeft, KeyCode.KeyA],
+  });
+  if (action !== null) input_queue.push(action);
+});
+
+function mapKeyToAction(key: string, map: Record<PlayerAction, KeyCode[]>): PlayerAction | null {
+  for (const [action, keys] of Object.entries(map)) {
+    if (keys.some(k => k === key)) {
+      return action as PlayerAction;
     }
   }
   return null;
@@ -201,7 +219,7 @@ function cloneLevelState(old_state: LevelState): LevelState {
     size: old_state.size,
     holes: old_state.holes,
     magenta_1: {
-      pos: old_state.magenta_1.pos.copyTo(),
+      pos: old_state.magenta_1.pos,
     },
     magenta_2: {
       horizontal: old_state.magenta_2.horizontal,
@@ -210,27 +228,18 @@ function cloneLevelState(old_state: LevelState): LevelState {
       offset: old_state.magenta_2.offset,
     },
     magenta_3: {
-      entry_pos: old_state.magenta_3.entry_pos.copyTo(),
-      exit_pos: old_state.magenta_3.exit_pos.copyTo(),
+      entry_pos: old_state.magenta_3.entry_pos,
+      exit_pos: old_state.magenta_3.exit_pos,
     },
     player: {
       layer: old_state.player.layer,
       drop: old_state.player.drop,
-      pos: old_state.player.pos.copyTo(),
+      pos: old_state.player.pos,
     },
-    downstairs_pos: old_state.downstairs_pos.map(x => x.copyTo()),
+    downstairs_pos: old_state.downstairs_pos.map(x => x),
     max_visited_layer: old_state.max_visited_layer,
   };
 }
-
-const key_mappings = {
-  "up": [KeyCode.ArrowUp, KeyCode.KeyW],
-  "down": [KeyCode.ArrowDown, KeyCode.KeyS],
-  "right": [KeyCode.ArrowRight, KeyCode.KeyD],
-  "left": [KeyCode.ArrowLeft, KeyCode.KeyA],
-};
-
-type PlayerAction = keyof typeof key_mappings;
 
 function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): number {
   let cur_drop = 0;
@@ -246,9 +255,9 @@ function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): num
 // TODO: key repeat, animation
 
 // Our whole game logic lives inside this function
-function advanceState(state: LevelState, player_action: PlayerAction): any[] {
+function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
   let player_move = DIRS[player_action];
-  let new_player_pos = state.player.pos.add(player_move, new Vec2());
+  let new_player_pos = state.player.pos.add(player_move);
   if (!Vec2.inBounds(new_player_pos, state.size)) return [];
 
   // go upstairs
@@ -280,12 +289,12 @@ function advanceState(state: LevelState, player_action: PlayerAction): any[] {
   if (state.max_visited_layer >= 3) {
     // mechanic 3: portal
     if (new_player_pos.equals(state.magenta_3.entry_pos)) {
-      new_player_pos.copyFrom(state.magenta_3.exit_pos);
+      new_player_pos = state.magenta_3.exit_pos;
       new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
       state.player.pos = new_player_pos;
       state.player.drop = new_player_drop;
-      state.magenta_3.entry_pos.copyFrom(state.magenta_3.exit_pos);
-      state.magenta_3.exit_pos.copyFrom(state.magenta_3.entry_pos);
+      state.magenta_3.entry_pos = state.magenta_3.exit_pos;
+      state.magenta_3.exit_pos = state.magenta_3.entry_pos;
       return [];
     } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
       let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes);
@@ -294,7 +303,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): any[] {
         return []; //null;
       }
       // player is pushing the crate
-      let new_magenta_crate_pos = state.magenta_3.exit_pos.add(player_move, new Vec2());
+      let new_magenta_crate_pos = state.magenta_3.exit_pos.add(player_move);
       if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return [] // null;
       let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
       if (new_magenta_crate_drop < state.player.drop) return [] //null; // player can't push the crate up
@@ -320,7 +329,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): any[] {
       }
     } else {
       // player can't overlap rails
-      let delta = new_player_pos.sub(state.magenta_2.top_left, new Vec2());
+      let delta = new_player_pos.sub(state.magenta_2.top_left);
       if (delta.y === 0 && delta.x >= 0 && delta.x < state.magenta_2.length && delta.x !== state.magenta_2.offset) {
         return [] // null;
       }
@@ -336,7 +345,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): any[] {
       let magenta_crate_drop = findDropAt(state.magenta_1.pos, state.player.layer, state.holes);
       if (magenta_crate_drop === state.player.drop) {
         // player is pushing the crate
-        let new_magenta_crate_pos = state.magenta_1.pos.add(player_move, new Vec2());
+        let new_magenta_crate_pos = state.magenta_1.pos.add(player_move);
         if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return []//null;
         let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
         if (new_magenta_crate_drop < state.player.drop) return [] //null; // player can't push the crate up
@@ -351,9 +360,19 @@ function advanceState(state: LevelState, player_action: PlayerAction): any[] {
     }
   }
 
+  let original_pos = state.player.pos;
+  let new_pos = new_player_pos;
+
   state.player.pos = new_player_pos;
   state.player.drop = new_player_drop;
-  return [];
+
+  return [{
+    duration: .1,
+    progress: 0,
+    callback: (t, that_state) => {
+      that_state.player.pos = Vec2.lerp(original_pos, new_pos, t);
+    }
+  }];
 
   // let magenta_crate_drop = findDropAt(old_state.magenta_crate_pos, old_state.player.layer, old_state.hole_above);
   // // if standing on the crate, add 1 height
@@ -430,11 +449,14 @@ function every_frame(cur_timestamp: number) {
   }
 
   // player move
-  let player_action = getPressed(key_mappings);
-  if (player_action !== null) {
-    let prev_state = cloneLevelState(cur_state);
-    advanceState(cur_state, player_action);
-    state_history.push(prev_state);
+  if (visual_state.anims.length === 0) {
+    let player_action = input_queue.shift();
+    if (player_action !== undefined) {
+      let prev_state = cloneLevelState(cur_state);
+      let anims = advanceState(cur_state, player_action);
+      visual_state.anims = visual_state.anims.concat(anims);
+      state_history.push(prev_state);
+    }
   }
 
   // animation progress
@@ -501,7 +523,7 @@ function every_frame(cur_timestamp: number) {
 function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, drop: number) {
   let D = 50;
   let scale = D / (drop + D);
-  let top_left_corner = Vec2.sub(pos, eye_pos).scale(scale).add(eye_pos);
+  let top_left_corner = pos.sub(eye_pos).scale(scale).add(eye_pos);
   ctx.drawImage(sprite,
     top_left_corner.x * TILE_SIZE, top_left_corner.y * TILE_SIZE,
     Math.ceil(TILE_SIZE * scale), Math.ceil(TILE_SIZE * scale));

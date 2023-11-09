@@ -141,8 +141,8 @@ type CardinalDirection = "xpos" | "xneg" | "ypos" | "yneg";
 
 export class Vec2 {
     constructor(
-        public x: number = 0.0,
-        public y: number = 0.0,
+        public readonly x: number = 0.0,
+        public readonly y: number = 0.0,
     ) { }
 
     toString(): string {
@@ -152,290 +152,108 @@ export class Vec2 {
     static readonly zero = new Vec2(0, 0);
     static readonly one = new Vec2(1, 1);
 
-    set(x: number, y: number): Vec2 {
-        this.x = x;
-        this.y = y;
-        return this;
-    }
-
-    copyFrom(src: Vec2): Vec2 {
-        this.x = src.x;
-        this.y = src.y;
-        return this;
-    }
-
-    copyTo(out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = this.x;
-        out.y = this.y;
-        return out;
-    }
-
     angleTo(other: Vec2): number {
         return Math.atan2(other.y - this.y, other.x - this.x);
     }
 
-    add(other: Vec2, out?: Vec2): Vec2 {
-        out = out || this;
-        out.x = this.x + other.x;
-        out.y = this.y + other.y;
-        return out;
+    add(other: Vec2): Vec2 {
+        return new Vec2(
+            this.x + other.x,
+            this.y + other.y,
+        );
     }
 
-    sub(other: Vec2, out?: Vec2): Vec2 {
-        out = out || this;
-        out.x = this.x - other.x;
-        out.y = this.y - other.y;
-        return out;
+    sub(other: Vec2): Vec2 {
+        return new Vec2(
+            this.x - other.x,
+            this.y - other.y,
+        );
     }
 
-    mul(other: Vec2, out?: Vec2): Vec2 {
-        out = out || this;
-        out.x = this.x * other.x;
-        out.y = this.y * other.y;
-        return out;
+    mul(other: Vec2): Vec2 {
+        return new Vec2(
+            this.x * other.x,
+            this.y * other.y,
+        );
     }
 
-    scale(factor: number, out?: Vec2): Vec2 {
-        out = out || this;
-        out.x = this.x * factor;
-        out.y = this.y * factor;
-        return out;
+    scale(factor: number): Vec2 {
+        return new Vec2(
+            this.x * factor,
+            this.y * factor,
+        );
     }
 
     equals(other: Vec2): boolean {
-        return Vec2.equals(this, other);
+        return this.x === other.x && this.y === other.y;
     }
 
     angle() {
         return Math.atan2(this.y, this.x);
     }
 
-    clamp(bounds: Rectangle, out?: Vec2): Vec2 {
-        out = out || this;
-        out.x = clamp(this.x, bounds.topLeft.x, bounds.topLeft.x + bounds.size.x);
-        out.y = clamp(this.y, bounds.topLeft.y, bounds.topLeft.y + bounds.size.y);
-        return out;
-    }
-
-    static fromPolar(radians: number, length: number): Vec2 {
-        return new Vec2(Math.cos(radians) * length, Math.sin(radians) * length);
-    }
-
-    static add(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = a.x + b.x;
-        out.y = a.y + b.y;
-        return out;
-    }
-
-    static sub(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = a.x - b.x;
-        out.y = a.y - b.y;
-        return out;
-    }
-
-    static mul(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = a.x * b.x;
-        out.y = a.y * b.y;
-        return out;
-    }
-
-    static div(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = a.x / b.x;
-        out.y = a.y / b.y;
-        return out;
-    }
-
-    static min(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = Math.min(a.x, b.x);
-        out.y = Math.min(a.y, b.y);
-        return out;
-    }
-
-    static max(a: Vec2, b: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = Math.max(a.x, b.x);
-        out.y = Math.max(a.y, b.y);
-        return out;
-    }
-
-    static round(v: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = Math.round(v.x);
-        out.y = Math.round(v.y);
-        return out;
-    }
-
-    static negate(v: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = -v.x;
-        out.y = -v.y;
-        return out;
-    }
-
-    static scale(v: Vec2, s: number, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = v.x * s;
-        out.y = v.y * s;
-        return out;
-    }
-
-    static rotate(v: Vec2, radians: number, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        let c = Math.cos(radians);
-        let s = Math.sin(radians);
-        let x = v.x * c - v.y * s;
-        out.y = v.x * s + v.y * c;
-        out.x = x;
-        return out;
-    }
-
-    static lerp(a: Vec2, b: Vec2, t: number, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = a.x * (1 - t) + b.x * t;
-        out.y = a.y * (1 - t) + b.y * t;
-        return out;
+    map1(fn: (v: number) => number): Vec2 {
+        return new Vec2(
+            fn(this.x),
+            fn(this.y),
+        );
     }
 
     static inBounds(point: Vec2, bounds: Vec2): boolean {
         return inRange(point.x, 0, bounds.x) && inRange(point.y, 0, bounds.y);
     }
 
-    // too niche for here?
-    static onBorder(point: Vec2, bounds: Vec2): boolean {
-        return onBorder(point.x, 0, bounds.x) || onBorder(point.y, 0, bounds.y);
-    }
-
-    static isZero(v: Vec2): boolean {
-        return v.x === 0 && v.y === 0;
-    }
-
-    static equals(a: Vec2, b: Vec2): boolean {
-        return a.x === b.x && a.y === b.y;
-    }
-
-    static magSq(v: Vec2): number {
-        return v.x * v.x + v.y * v.y;
-    }
-
-    static mag(v: Vec2): number {
-        return Math.sqrt(Vec2.magSq(v));
-    }
-
-    static radians(v: Vec2): number {
-        return Math.atan2(v.y, v.x);
-    }
-
-    static taxicab(v: Vec2): number {
-        return Math.abs(v.x) + Math.abs(v.y);
-    }
-
-    static lInf(v: Vec2): number {
-        return Math.max(Math.abs(v.x), Math.abs(v.y));
-    }
-
-    static map1(v: Vec2, fn: (x: number) => number, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = fn(v.x);
-        out.y = fn(v.y);
-        return out;
-    }
-
-    static map2(a: Vec2, b: Vec2, fn: (a: number, b: number) => number, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = fn(a.x, b.x);
-        out.y = fn(a.y, b.y);
-        return out;
-    }
-
-    static randint(max_exclusive: Vec2, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = Math.floor(Math.random() * max_exclusive.x);
-        out.y = Math.floor(Math.random() * max_exclusive.y);
-        return out;
-    }
-
-    static randunit(out?: Vec2): Vec2 {
-        return Vec2.fromRadians(Math.random() * Math.PI * 2, out);
-    }
-
-    static fromRadians(radians: number, out?: Vec2): Vec2 {
-        out = out || new Vec2();
-        out.x = Math.cos(radians);
-        out.y = Math.sin(radians);
-        return out;
-    }
-
-    static isInsideBox(point: Vec2, box_center: Vec2, box_size: Vec2): boolean {
-        return (Math.abs(point.x - box_center.x) < box_size.x * .5)
-            && (Math.abs(point.y - box_center.y) < box_size.y * .5);
-    }
-
-    static roundToCardinal(a: Vec2): CardinalDirection {
-        if (Math.abs(a.x) >= Math.abs(a.y)) {
-            if (a.x >= 0) {
-                return "xpos";
-            } else {
-                return "xneg";
-            }
-        } else {
-            if (a.y >= 0) {
-                return "ypos";
-            } else {
-                return "yneg";
-            }
-        }
+    static lerp(a: Vec2, b: Vec2, t: number): Vec2 {
+        return new Vec2(
+            a.x * (1 - t) + b.x * t,
+            a.y * (1 - t) + b.y * t,
+        );
     }
 }
 
-// todo: generalize, error check for too many args
-export class Rectangle {
-    constructor(
-        public topLeft: Vec2,
-        public size: Vec2) { }
+// // todo: generalize, error check for too many args
+// export class Rectangle {
+//     constructor(
+//         public topLeft: Vec2,
+//         public size: Vec2) { }
 
-    static readonly unit = new Rectangle(Vec2.zero, Vec2.one);
+//     static readonly unit = new Rectangle(Vec2.zero, Vec2.one);
 
-    static fromParams(params: {
-        topLeft?: Vec2,
-        center?: Vec2,
-        bottomRight?: Vec2,
-        size?: Vec2,
-    }): Rectangle {
-        let topLeft = new Vec2();
-        let size = new Vec2();
+//     static fromParams(params: {
+//         topLeft?: Vec2,
+//         center?: Vec2,
+//         bottomRight?: Vec2,
+//         size?: Vec2,
+//     }): Rectangle {
+//         let topLeft = new Vec2();
+//         let size = new Vec2();
 
-        if (params.topLeft !== undefined) {
-            topLeft.copyFrom(params.topLeft);
-            if (params.size !== undefined) {
-                size.copyFrom(params.size);
-            } else if (params.bottomRight !== undefined) {
-                Vec2.sub(params.bottomRight, topLeft, size);
-            } else if (params.center !== undefined) {
-                Vec2.sub(params.center, topLeft, size);
-                Vec2.scale(size, 2, size);
-            } else {
-                throw new Error("not enough data to compute rect");
-            }
-            return new Rectangle(topLeft, size);
-        } else if (params.center !== undefined) {
-            if (params.size !== undefined) {
-                size.copyFrom(params.size);
-            } else if (params.bottomRight !== undefined) {
-                Vec2.sub(params.bottomRight, params.center, size);
-                Vec2.scale(size, 2, size);
-            } else {
-                throw new Error("not enough data to compute rect");
-            }
-            Vec2.sub(params.center, Vec2.scale(size, .5), topLeft);
-            return new Rectangle(topLeft, size);
-        } else {
-            throw new Error("unimplemented");
-        }
-    }
-}
+//         if (params.topLeft !== undefined) {
+//             topLeft.copyFrom(params.topLeft);
+//             if (params.size !== undefined) {
+//                 size.copyFrom(params.size);
+//             } else if (params.bottomRight !== undefined) {
+//                 Vec2.sub(params.bottomRight, topLeft, size);
+//             } else if (params.center !== undefined) {
+//                 Vec2.sub(params.center, topLeft, size);
+//                 Vec2.scale(size, 2, size);
+//             } else {
+//                 throw new Error("not enough data to compute rect");
+//             }
+//             return new Rectangle(topLeft, size);
+//         } else if (params.center !== undefined) {
+//             if (params.size !== undefined) {
+//                 size.copyFrom(params.size);
+//             } else if (params.bottomRight !== undefined) {
+//                 Vec2.sub(params.bottomRight, params.center, size);
+//                 Vec2.scale(size, 2, size);
+//             } else {
+//                 throw new Error("not enough data to compute rect");
+//             }
+//             Vec2.sub(params.center, Vec2.scale(size, .5), topLeft);
+//             return new Rectangle(topLeft, size);
+//         } else {
+//             throw new Error("unimplemented");
+//         }
+//     }
+// }
