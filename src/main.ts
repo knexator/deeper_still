@@ -7,9 +7,9 @@ import { Vec2, mod, towards } from "./kommon/math";
 import { canvasFromAscii } from "./kommon/spritePS";
 
 // game logic
-type LevelState = typeof initial_state;
+type LevelState = typeof cur_state;
 
-let initial_state = {
+let cur_state = {
   size: new Vec2(13, 13),
   holes: holesFromAscii(`
 ......01.....
@@ -53,6 +53,11 @@ let initial_state = {
   max_visited_layer: 0,
 };
 
+let visual_state: {anims: any[]} = {
+  // logic_state: cur_state,
+  anims: [],
+}
+
 function holesFromAscii(ascii: string): Grid2D<boolean>[] {
   let data = Grid2D.fromAscii(ascii);
   return fromCount(9, k => {
@@ -60,10 +65,7 @@ function holesFromAscii(ascii: string): Grid2D<boolean>[] {
   })
 }
 
-let state_history = [initial_state];
-
-let remaining_anim_t = 0;
-let turn_anim_duration = .1;
+let state_history: LevelState[] = [];
 
 // game graphics
 const TILE_SIZE = 40;
@@ -172,8 +174,8 @@ const input = new Input();
 const canvas = document.querySelector<HTMLCanvasElement>("#game_canvas")!;
 const ctx = canvas.getContext("2d")!;
 
-canvas.width = initial_state.size.x * TILE_SIZE;
-canvas.height = initial_state.size.y * TILE_SIZE;
+canvas.width = cur_state.size.x * TILE_SIZE;
+canvas.height = cur_state.size.y * TILE_SIZE;
 
 ctx.imageSmoothingEnabled = false;
 
@@ -244,123 +246,114 @@ function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): num
 // TODO: key repeat, animation
 
 // Our whole game logic lives inside this function
-function advanceState(old_state: LevelState, player_action: PlayerAction): LevelState | null {
+function advanceState(state: LevelState, player_action: PlayerAction): any[] {
   let player_move = DIRS[player_action];
-  let new_player_pos = old_state.player.pos.add(player_move, new Vec2());
-  if (!Vec2.inBounds(new_player_pos, old_state.size)) return null;
+  let new_player_pos = state.player.pos.add(player_move, new Vec2());
+  if (!Vec2.inBounds(new_player_pos, state.size)) return [];
 
   // go upstairs
-  if (old_state.player.layer > 0 && old_state.downstairs_pos[old_state.player.layer - 1].equals(new_player_pos)) {
-    let new_state = cloneLevelState(old_state);
-    new_state.player.pos = new_player_pos;
-    new_state.player.layer -= 1;
-    new_state.player.drop = 0; // TODO: bug here
-    return new_state;
+  if (state.player.layer > 0 && state.downstairs_pos[state.player.layer - 1].equals(new_player_pos)) {
+    state.player.pos = new_player_pos;
+    state.player.layer -= 1;
+    state.player.drop = 0; // TODO: bug here
+    return [];
   }
 
   // go downstairs
-  if (new_player_pos.equals(old_state.downstairs_pos[old_state.player.layer])) {
-    let new_state = cloneLevelState(old_state);
-    new_state.player.pos = new_player_pos;
-    new_state.player.layer += 1;
-    new_state.player.drop = 0;
-    new_state.max_visited_layer = Math.max(new_state.max_visited_layer, new_state.player.layer);
-    if (new_state.player.layer >= old_state.downstairs_pos.length) {
+  if (new_player_pos.equals(state.downstairs_pos[state.player.layer])) {
+    state.player.pos = new_player_pos;
+    state.player.layer += 1;
+    state.player.drop = 0;
+    state.max_visited_layer = Math.max(state.max_visited_layer, state.player.layer);
+    if (state.player.layer >= state.downstairs_pos.length) {
       // TODO: END GAME
-      return null;
+      return [];// return null;
     }
-    return new_state;
+    return [];
   }
 
-  let new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
+  let new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
 
   // TODO: interactions between mechanics
   // among others: magenta 3 and 1 can't overlap 2's rail
 
-  if (old_state.max_visited_layer >= 3) {
+  if (state.max_visited_layer >= 3) {
     // mechanic 3: portal
-    if (new_player_pos.equals(old_state.magenta_3.entry_pos)) {
-      new_player_pos.copyFrom(old_state.magenta_3.exit_pos);
-      new_player_drop = findDropAt(new_player_pos, old_state.player.layer, old_state.holes);
-      let new_state = cloneLevelState(old_state);
-      new_state.player.pos = new_player_pos;
-      new_state.player.drop = new_player_drop;
-      new_state.magenta_3.entry_pos.copyFrom(old_state.magenta_3.exit_pos);
-      new_state.magenta_3.exit_pos.copyFrom(old_state.magenta_3.entry_pos);
-      return new_state;
-    } else if (new_player_pos.equals(old_state.magenta_3.exit_pos)) {
-      let magenta_crate_drop = findDropAt(old_state.magenta_3.exit_pos, old_state.player.layer, old_state.holes);
-      if (magenta_crate_drop !== old_state.player.drop || old_state.player.drop !== new_player_drop) {
+    if (new_player_pos.equals(state.magenta_3.entry_pos)) {
+      new_player_pos.copyFrom(state.magenta_3.exit_pos);
+      new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
+      state.player.pos = new_player_pos;
+      state.player.drop = new_player_drop;
+      state.magenta_3.entry_pos.copyFrom(state.magenta_3.exit_pos);
+      state.magenta_3.exit_pos.copyFrom(state.magenta_3.entry_pos);
+      return [];
+    } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
+      let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes);
+      if (magenta_crate_drop !== state.player.drop || state.player.drop !== new_player_drop) {
         // can't stand on portal exit
-        return null;
+        return []; //null;
       }
       // player is pushing the crate
-      let new_magenta_crate_pos = old_state.magenta_3.exit_pos.add(player_move, new Vec2());
-      if (!Vec2.inBounds(new_magenta_crate_pos, old_state.size)) return null;
-      let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.holes);
-      if (new_magenta_crate_drop < old_state.player.drop) return null; // player can't push the crate up
-      let new_state = cloneLevelState(old_state);
-      new_state.magenta_3.exit_pos = new_magenta_crate_pos;
-      new_state.player.pos = new_player_pos;
-      return new_state;
+      let new_magenta_crate_pos = state.magenta_3.exit_pos.add(player_move, new Vec2());
+      if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return [] // null;
+      let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+      if (new_magenta_crate_drop < state.player.drop) return [] //null; // player can't push the crate up
+      state.magenta_3.exit_pos = new_magenta_crate_pos;
+      state.player.pos = new_player_pos;
+      return [];
     }
   }
 
-  if (old_state.max_visited_layer >= 2) {
+  if (state.max_visited_layer >= 2) {
     // mechanic 2: rail
-    if (!old_state.magenta_2.horizontal) throw new Error("unimplemented");
-    let old_rail_pos = new Vec2(old_state.magenta_2.offset, 0).add(old_state.magenta_2.top_left);
-    if (old_state.player.pos.equals(old_rail_pos)) {
+    if (!state.magenta_2.horizontal) throw new Error("unimplemented");
+    let old_rail_pos = new Vec2(state.magenta_2.offset, 0).add(state.magenta_2.top_left);
+    if (state.player.pos.equals(old_rail_pos)) {
       if (player_move.y === 0) {
-        let new_offset = old_state.magenta_2.offset + player_move.x;
-        if (new_offset >= 0 && new_offset < old_state.magenta_2.length) {
-          let new_state = cloneLevelState(old_state);
-          new_state.magenta_2.offset = new_offset;
-          new_state.player.pos = new_player_pos;
-          new_state.player.drop = 0;
-          return new_state;
+        let new_offset = state.magenta_2.offset + player_move.x;
+        if (new_offset >= 0 && new_offset < state.magenta_2.length) {
+          state.magenta_2.offset = new_offset;
+          state.player.pos = new_player_pos;
+          state.player.drop = 0;
+          return [];
         }
       }
     } else {
       // player can't overlap rails
-      let delta = new_player_pos.sub(old_state.magenta_2.top_left, new Vec2());
-      if (delta.y === 0 && delta.x >= 0 && delta.x < old_state.magenta_2.length && delta.x !== old_state.magenta_2.offset) {
-        return null;
+      let delta = new_player_pos.sub(state.magenta_2.top_left, new Vec2());
+      if (delta.y === 0 && delta.x >= 0 && delta.x < state.magenta_2.length && delta.x !== state.magenta_2.offset) {
+        return [] // null;
       }
     }
   }
 
-  if (new_player_drop < old_state.player.drop) return null; // player can't move up
+  if (new_player_drop < state.player.drop) return [] // null; // player can't move up
 
-  if (old_state.max_visited_layer >= 1) {
+  if (state.max_visited_layer >= 1) {
     // mechanic 1: crate
-    if (new_player_pos.equals(old_state.magenta_1.pos)) {
+    if (new_player_pos.equals(state.magenta_1.pos)) {
       // is the player pushing the crate or standing on it?
-      let magenta_crate_drop = findDropAt(old_state.magenta_1.pos, old_state.player.layer, old_state.holes);
-      if (magenta_crate_drop === old_state.player.drop) {
+      let magenta_crate_drop = findDropAt(state.magenta_1.pos, state.player.layer, state.holes);
+      if (magenta_crate_drop === state.player.drop) {
         // player is pushing the crate
-        let new_magenta_crate_pos = old_state.magenta_1.pos.add(player_move, new Vec2());
-        if (!Vec2.inBounds(new_magenta_crate_pos, old_state.size)) return null;
-        let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, old_state.player.layer, old_state.holes);
-        if (new_magenta_crate_drop < old_state.player.drop) return null; // player can't push the crate up
-        let new_state = cloneLevelState(old_state);
-        new_state.magenta_1.pos = new_magenta_crate_pos;
-        new_state.player.pos = new_player_pos;
-        return new_state;
+        let new_magenta_crate_pos = state.magenta_1.pos.add(player_move, new Vec2());
+        if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return []//null;
+        let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+        if (new_magenta_crate_drop < state.player.drop) return [] //null; // player can't push the crate up
+        state.magenta_1.pos = new_magenta_crate_pos;
+        state.player.pos = new_player_pos;
       } else {
         // player is standing on the crate
-        let new_state = cloneLevelState(old_state);
-        new_state.player.pos = new_player_pos;
-        new_state.player.drop = magenta_crate_drop - 1;
-        return new_state;
+        state.player.pos = new_player_pos;
+        state.player.drop = magenta_crate_drop - 1;
+        return [];
       }
     }
   }
 
-  let new_state = cloneLevelState(old_state);
-  new_state.player.pos = new_player_pos;
-  new_state.player.drop = new_player_drop;
-  return new_state;
+  state.player.pos = new_player_pos;
+  state.player.drop = new_player_drop;
+  return [];
 
   // let magenta_crate_drop = findDropAt(old_state.magenta_crate_pos, old_state.player.layer, old_state.hole_above);
   // // if standing on the crate, add 1 height
@@ -421,38 +414,35 @@ function every_frame(cur_timestamp: number) {
   last_timestamp = cur_timestamp;
   input.startFrame();
 
-  let cur_state = at(state_history, -1);
-
   // undo
   if (input.keyboard.wasPressed(KeyCode.KeyZ)) {
-    if (state_history.length > 1) {
-      state_history.pop();
-      cur_state = at(state_history, -1);
-      remaining_anim_t = 0;
+    if (state_history.length > 0) {
+      cur_state = state_history.pop()!;
     }
   }
 
   // reset
   if (input.keyboard.wasPressed(KeyCode.KeyR)) {
-    if (state_history.length > 1) {
-      state_history.push(initial_state);
-      remaining_anim_t = 0;
+    if (state_history.length > 0) {
+      state_history.push(cloneLevelState(cur_state));
+      cur_state = cloneLevelState(state_history[0]);
     }
   }
 
   // player move
   let player_action = getPressed(key_mappings);
   if (player_action !== null) {
-    let new_state = advanceState(cur_state, player_action);
-    if (new_state !== null) {
-      state_history.push(new_state);
-      cur_state = new_state;
-      remaining_anim_t = 1;
-    }
+    let prev_state = cloneLevelState(cur_state);
+    advanceState(cur_state, player_action);
+    state_history.push(prev_state);
   }
 
   // animation progress
-  remaining_anim_t = towards(remaining_anim_t, 0, delta_time / turn_anim_duration);
+  visual_state.anims = visual_state.anims.filter(anim => {
+    anim.progress = towards(anim.progress, 1, delta_time / anim.duration);
+    anim.callback(anim.progress, cur_state);
+    return anim.progress < 1;
+  });
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
