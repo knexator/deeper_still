@@ -252,35 +252,82 @@ function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): num
   return cur_drop;
 }
 
-// TODO: key repeat, animation
+function makePlayerBumpAnim(pos: Vec2, dir: Vec2): Anim {
+  return makeBumpAnim(pos, dir, (state, v) => { state.player.pos = v });
+}
+
+function makeBumpAnim(pos: Vec2, dir: Vec2, setter: (state: LevelState, v: Vec2) => void): Anim {
+  return {
+    progress: 0,
+    duration: 0.05,
+    callback: (t, state) => {
+      let d = Math.min(t, 1 - t) * .4;
+      setter(state, pos.add(dir.scale(d)));
+    }
+  }
+}
+
+function makePlayerMoveAnim(pos: Vec2, dir: Vec2): Anim {
+  return makeMoveAnim(pos, dir, (state, v) => { state.player.pos = v });
+}
+
+function makeMoveAnim(pos: Vec2, dir: Vec2, setter: (state: LevelState, v: Vec2) => void): Anim {
+  return {
+    progress: 0,
+    duration: 0.05,
+    callback: (t, state) => {
+      setter(state, pos.add(dir.scale(t)));
+    }
+  }
+}
 
 // Our whole game logic lives inside this function
 function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
   let player_move = DIRS[player_action];
   let new_player_pos = state.player.pos.add(player_move);
-  if (!Vec2.inBounds(new_player_pos, state.size)) return [];
+  let bump_anims = [makePlayerBumpAnim(state.player.pos, player_move)];
+  if (!Vec2.inBounds(new_player_pos, state.size)) return bump_anims;
+
+  let anims = [makePlayerMoveAnim(state.player.pos, player_move)];
 
   // go upstairs
   if (state.player.layer > 0 && state.downstairs_pos[state.player.layer - 1].equals(new_player_pos)) {
-    state.player.pos = new_player_pos;
-    state.player.layer -= 1;
-    state.player.drop = 0; // TODO: bug here
-    return [];
+    let new_layer = state.player.layer - 1;
+    anims.push({
+      duration: 0.1,
+      progress: 0,
+      callback: (t, state) => {
+        if (t >= .6) {
+          state.player.layer = new_layer;
+          state.player.drop = 0; // TODO: bug here
+        }
+      }
+    });
+    return anims;
   }
 
   // go downstairs
   if (new_player_pos.equals(state.downstairs_pos[state.player.layer])) {
-    state.player.pos = new_player_pos;
-    state.player.layer += 1;
-    state.player.drop = 0;
-    state.max_visited_layer = Math.max(state.max_visited_layer, state.player.layer);
+    let new_layer = state.player.layer + 1;
     if (state.player.layer >= state.downstairs_pos.length) {
       // TODO: END GAME
-      return [];// return null;
+      return bump_anims;
     }
-    return [];
+    anims.push({
+      duration: 0.1,
+      progress: 0,
+      callback: (t, state) => {
+        if (t >= .6) {
+          state.player.layer = new_layer;
+          state.player.drop = 0; // TODO: bug here
+          state.max_visited_layer = Math.max(state.max_visited_layer, state.player.layer);
+        }
+      }
+    });
+    return anims;
   }
 
+  // TODO: drop anim
   let new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
 
   // TODO: interactions between mechanics
@@ -336,7 +383,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
     }
   }
 
-  if (new_player_drop < state.player.drop) return [] // null; // player can't move up
+  if (new_player_drop < state.player.drop) return bump_anims; // player can't move up
 
   if (state.max_visited_layer >= 1) {
     // mechanic 1: crate
@@ -346,83 +393,25 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
       if (magenta_crate_drop === state.player.drop) {
         // player is pushing the crate
         let new_magenta_crate_pos = state.magenta_1.pos.add(player_move);
-        if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return []//null;
+        if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return bump_anims;
         let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
-        if (new_magenta_crate_drop < state.player.drop) return [] //null; // player can't push the crate up
-        state.magenta_1.pos = new_magenta_crate_pos;
-        state.player.pos = new_player_pos;
+        if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
+        anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => {state.magenta_1.pos = v}))
+        // state.magenta_1.pos = new_magenta_crate_pos;
+        // state.player.pos = new_player_pos;
       } else {
         // player is standing on the crate
         state.player.pos = new_player_pos;
         state.player.drop = magenta_crate_drop - 1;
-        return [];
+        return anims;
       }
     }
   }
 
-  let original_pos = state.player.pos;
-  let new_pos = new_player_pos;
-
   state.player.pos = new_player_pos;
   state.player.drop = new_player_drop;
 
-  return [{
-    duration: .1,
-    progress: 0,
-    callback: (t, that_state) => {
-      that_state.player.pos = Vec2.lerp(original_pos, new_pos, t);
-    }
-  }];
-
-  // let magenta_crate_drop = findDropAt(old_state.magenta_crate_pos, old_state.player.layer, old_state.hole_above);
-  // // if standing on the crate, add 1 height
-  // if (new_player_pos.equals(old_state.magenta_crate_pos) && magenta_crate_drop )
-
-  // if (!new_player_pos.equals(old_state.magenta_crate_pos)) {
-  //   // Simple case: player moving around far from the crate
-  //   new_player_drop -= 1;
-  // }
-  // if (new_player_drop !== old_state.player.drop) {
-
-  // }
-
-  // old_state.hole_above[old_state.player.layer];
-
-  // if (new_player_pos.equals(old_state.magenta_crate_pos)) {
-
-  // }
-
-
-  // // new_state.player.pos = new_player_pos;
-  // // return new_state;
-  // return null;
-
-  // if (new_state.walls.getV(new_player_pos, true)) {
-  //   // bounce against wall
-  //   return null;
-  // } else {
-  //   let pushing_crate_index = new_state.crates.findIndex(pos => Vec2.equals(pos, new_player_pos));
-  //   if (pushing_crate_index === -1) {
-  //     // Simply move
-  //     new_state.player.copyFrom(new_player_pos);
-  //     return new_state;
-  //   } else {
-  //     // Can the crate be pushed?
-  //     let new_crate_pos = new_player_pos.add(player_move, new Vec2());
-  //     if (new_state.walls.getV(new_crate_pos, true)) {
-  //       // no, crate bumps against the wall
-  //       return null;
-  //     } else if (new_state.crates.some(pos => Vec2.equals(pos, new_crate_pos))) {
-  //       // no, crate bumps against another crate
-  //       return null;
-  //     } else {
-  //       // yes, push the crate
-  //       new_state.player.copyFrom(new_player_pos);
-  //       new_state.crates[pushing_crate_index].copyFrom(new_crate_pos);
-  //       return new_state;
-  //     }
-  //   }
-  // }
+  return anims;
 }
 
 let last_timestamp = 0;
