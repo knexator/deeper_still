@@ -281,14 +281,46 @@ function makeMoveAnim(pos: Vec2, dir: Vec2, setter: (state: LevelState, v: Vec2)
   }
 }
 
+type Thing = "oob" | "none" | "player" | "upstair" | "downstair" | "magenta_1" 
+
+function thingAt(state: LevelState, pos: Vec2): Thing {
+  if (pos.equals(state.player.pos)) return "player";
+  if (!Vec2.inBounds(pos, state.size)) return "oob";
+  if (state.player.layer > 0 && state.downstairs_pos[state.player.layer - 1].equals(pos)) return "upstair";
+  if (state.player.layer + 1 < state.downstairs_pos.length && state.downstairs_pos[state.player.layer].equals(pos)) return "downstair";
+
+
+  return "none";
+}
+
+// function canMoveHere(state: LevelState, thing: Thing, thing_target: Thing): boolean {
+//   if (thing === "oob" || thing_target === "oob") return false;
+//   if (thing === "none" || thing_target === "none") {
+//     return true;
+//   }
+//   if (thing_target === "downstair" || thing_target === "upstair") {
+//     return thing === "player";
+//   }
+//   return false;
+// }
+
 // Our whole game logic lives inside this function
 function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
   let player_move = DIRS[player_action];
   let new_player_pos = state.player.pos.add(player_move);
-  let bump_anims = [makePlayerBumpAnim(state.player.pos, player_move)];
-  if (!Vec2.inBounds(new_player_pos, state.size)) return bump_anims;
-
   let anims = [makePlayerMoveAnim(state.player.pos, player_move)];
+  let bump_anims = [makePlayerBumpAnim(state.player.pos, player_move)];
+
+  // could be nice to have the whole logic here:
+  // let thing_at_target = thingAt(state, new_player_pos);
+  // if (canMoveHere(state, "player", thing_at_target)) {
+  //  missing specific logic - moving into an upstair should change the layer, for example
+  //   return anims;
+  // } else {
+  //   return bump_anims;
+  // }
+
+  if (!Vec2.inBounds(new_player_pos, state.size)) return bump_anims;
 
   // go upstairs
   if (state.player.layer > 0 && state.downstairs_pos[state.player.layer - 1].equals(new_player_pos)) {
@@ -393,10 +425,12 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
       if (magenta_crate_drop === state.player.drop) {
         // player is pushing the crate
         let new_magenta_crate_pos = state.magenta_1.pos.add(player_move);
-        if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return bump_anims;
+        if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
+        // if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return bump_anims;
+
         let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
         if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
-        anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => {state.magenta_1.pos = v}))
+        anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
         // state.magenta_1.pos = new_magenta_crate_pos;
         // state.player.pos = new_player_pos;
       } else {
