@@ -282,13 +282,27 @@ function makeMoveAnim(pos: Vec2, dir: Vec2, setter: (state: LevelState, v: Vec2)
   }
 }
 
-type Thing = "oob" | "none" | "player" | "upstair" | "downstair" | "magenta_1"
+type Thing = "oob" | "none" | "player" | "upstair" | "downstair" | "magenta_1" | "magenta_2_cart" | "magenta_2_rail" | "magenta_3_entry" | "magenta_3_exit"
 
 function thingAt(state: LevelState, pos: Vec2): Thing {
   if (pos.equals(state.player.pos)) return "player";
   if (!Vec2.inBounds(pos, state.size)) return "oob";
   if (state.player.layer > 0 && state.downstairs_pos[state.player.layer - 1].equals(pos)) return "upstair";
   if (state.player.layer + 1 < state.downstairs_pos.length && state.downstairs_pos[state.player.layer].equals(pos)) return "downstair";
+  if (state.max_visited_layer >= 1 && state.magenta_1.pos.equals(pos)) return "magenta_1"
+  if (state.max_visited_layer >= 2) {
+    if (!state.magenta_2.horizontal) throw new Error("unimplemented");
+    let cart_pos = new Vec2(state.magenta_2.offset, 0).add(state.magenta_2.top_left);
+    if (pos.equals(cart_pos)) return "magenta_2_cart"
+    let delta = pos.sub(state.magenta_2.top_left);
+    if (delta.y === 0 && delta.x >= 0 && delta.x < state.magenta_2.length && delta.x !== state.magenta_2.offset) {
+      return "magenta_2_rail";
+    }
+  }
+  if (state.max_visited_layer >= 3) {
+    if (pos.equals(state.magenta_3.entry_pos)) return "magenta_3_entry"
+    if (pos.equals(state.magenta_3.exit_pos)) return "magenta_3_exit"
+  }
 
 
   return "none";
@@ -364,9 +378,6 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
   // TODO: drop anim
   let new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
 
-  // TODO: interactions between mechanics
-  // among others: magenta 3 and 1 can't overlap 2's rail
-
   if (state.max_visited_layer >= 3) {
     // mechanic 3: portal
     if (new_player_pos.equals(state.magenta_3.entry_pos)) {
@@ -374,23 +385,26 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
       state.player.pos = new_player_pos;
       state.player.drop = new_player_drop;
-      state.magenta_3.entry_pos = state.magenta_3.exit_pos;
       state.magenta_3.exit_pos = state.magenta_3.entry_pos;
+      state.magenta_3.entry_pos = new_player_pos;
       return [[], true]; // todo: portal anim
     } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
       let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes);
       if (magenta_crate_drop !== state.player.drop || state.player.drop !== new_player_drop) {
         // can't stand on portal exit
-        return [[], false]; // null
+        return bump_anims;
       }
       // player is pushing the crate
       let new_magenta_crate_pos = state.magenta_3.exit_pos.add(player_move);
-      if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return bump_anims; // null;
+      if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
       let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
       if (new_magenta_crate_drop < state.player.drop) return bump_anims; //null; // player can't push the crate up
+      anims.push(makeMoveAnim(state.magenta_3.exit_pos, player_move, (state, vec) => {
+        state.magenta_3.exit_pos = vec;
+      }))
       state.magenta_3.exit_pos = new_magenta_crate_pos;
       state.player.pos = new_player_pos;
-      return [[], true]; // todo: anim
+      return [anims, true];
     }
   }
 
@@ -402,10 +416,18 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       if (player_move.y === 0) {
         let new_offset = state.magenta_2.offset + player_move.x;
         if (new_offset >= 0 && new_offset < state.magenta_2.length) {
+          let old_offset = state.magenta_2.offset;
+          anims.push({
+            progress: 0,
+            duration: .05,
+            callback: (t, state) => {
+              state.magenta_2.offset = old_offset + t * player_move.x;
+            },
+          })
           state.magenta_2.offset = new_offset;
           state.player.pos = new_player_pos;
           state.player.drop = 0;
-          return [[], true]; //todo: anim
+          return [anims, true];
         }
       }
     } else {
@@ -439,7 +461,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
         // player is standing on the crate
         state.player.pos = new_player_pos;
         state.player.drop = magenta_crate_drop - 1;
-        return [[], true]; // todo: anim
+        return [anims, true];
       }
     }
   }
