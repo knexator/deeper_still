@@ -192,7 +192,7 @@ const DIRS = {
   up: new Vec2(0, -1),
 };
 
-type PlayerAction = "up" | "down" | "left" | "right"
+type PlayerAction = "up" | "down" | "left" | "right" | "undo"
 let input_queue: PlayerAction[] = [];
 
 document.addEventListener("keydown", (ev: KeyboardEvent) => {
@@ -201,6 +201,7 @@ document.addEventListener("keydown", (ev: KeyboardEvent) => {
     "down": [KeyCode.ArrowDown, KeyCode.KeyS],
     "right": [KeyCode.ArrowRight, KeyCode.KeyD],
     "left": [KeyCode.ArrowLeft, KeyCode.KeyA],
+    "undo": [KeyCode.KeyZ, KeyCode.KeyU],
   });
   if (action !== null) input_queue.push(action);
 });
@@ -306,6 +307,7 @@ function thingAt(state: LevelState, pos: Vec2): Thing {
 
 // Our whole game logic lives inside this function
 function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], boolean] {
+  if (player_action === "undo") throw new Error("");
   let player_move = DIRS[player_action];
   let new_player_pos = state.player.pos.add(player_move);
   let anims = [makePlayerMoveAnim(state.player.pos, player_move)];
@@ -456,13 +458,6 @@ function every_frame(cur_timestamp: number) {
   last_timestamp = cur_timestamp;
   input.startFrame();
 
-  // undo
-  if (input.keyboard.wasPressed(KeyCode.KeyZ)) {
-    if (state_history.length > 0) {
-      cur_state = state_history.pop()!;
-    }
-  }
-
   // reset
   if (input.keyboard.wasPressed(KeyCode.KeyR)) {
     if (state_history.length > 0) {
@@ -474,7 +469,12 @@ function every_frame(cur_timestamp: number) {
   // player move
   if (visual_state.anims.length === 0) {
     let player_action = input_queue.shift();
-    if (player_action !== undefined) {
+    if (player_action === "undo") {
+      if (state_history.length > 0) {
+        cur_state = state_history.pop()!;
+      }
+      input_queue = [];
+    } else if (player_action !== undefined) {
       let prev_state = cloneLevelState(cur_state);
       let [anims, undoable] = advanceState(cur_state, player_action);
       visual_state.anims = visual_state.anims.concat(anims);
