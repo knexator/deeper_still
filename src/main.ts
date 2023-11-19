@@ -281,7 +281,7 @@ function makeMoveAnim(pos: Vec2, dir: Vec2, setter: (state: LevelState, v: Vec2)
   }
 }
 
-type Thing = "oob" | "none" | "player" | "upstair" | "downstair" | "magenta_1" 
+type Thing = "oob" | "none" | "player" | "upstair" | "downstair" | "magenta_1"
 
 function thingAt(state: LevelState, pos: Vec2): Thing {
   if (pos.equals(state.player.pos)) return "player";
@@ -305,11 +305,11 @@ function thingAt(state: LevelState, pos: Vec2): Thing {
 // }
 
 // Our whole game logic lives inside this function
-function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
+function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], boolean] {
   let player_move = DIRS[player_action];
   let new_player_pos = state.player.pos.add(player_move);
   let anims = [makePlayerMoveAnim(state.player.pos, player_move)];
-  let bump_anims = [makePlayerBumpAnim(state.player.pos, player_move)];
+  let bump_anims: [Anim[], boolean] = [[makePlayerBumpAnim(state.player.pos, player_move)], false];
 
   // could be nice to have the whole logic here:
   // let thing_at_target = thingAt(state, new_player_pos);
@@ -335,7 +335,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
         }
       }
     });
-    return anims;
+    return [anims, true];
   }
 
   // go downstairs
@@ -356,7 +356,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
         }
       }
     });
-    return anims;
+    return [anims, true];
   }
 
   // TODO: drop anim
@@ -374,21 +374,21 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
       state.player.drop = new_player_drop;
       state.magenta_3.entry_pos = state.magenta_3.exit_pos;
       state.magenta_3.exit_pos = state.magenta_3.entry_pos;
-      return [];
+      return [[], true]; // todo: portal anim
     } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
       let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes);
       if (magenta_crate_drop !== state.player.drop || state.player.drop !== new_player_drop) {
         // can't stand on portal exit
-        return []; //null;
+        return [[], false]; // null
       }
       // player is pushing the crate
       let new_magenta_crate_pos = state.magenta_3.exit_pos.add(player_move);
-      if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return [] // null;
+      if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return bump_anims; // null;
       let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
-      if (new_magenta_crate_drop < state.player.drop) return [] //null; // player can't push the crate up
+      if (new_magenta_crate_drop < state.player.drop) return bump_anims; //null; // player can't push the crate up
       state.magenta_3.exit_pos = new_magenta_crate_pos;
       state.player.pos = new_player_pos;
-      return [];
+      return [[], true]; // todo: anim
     }
   }
 
@@ -403,14 +403,14 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
           state.magenta_2.offset = new_offset;
           state.player.pos = new_player_pos;
           state.player.drop = 0;
-          return [];
+          return [[], true]; //todo: anim
         }
       }
     } else {
       // player can't overlap rails
       let delta = new_player_pos.sub(state.magenta_2.top_left);
       if (delta.y === 0 && delta.x >= 0 && delta.x < state.magenta_2.length && delta.x !== state.magenta_2.offset) {
-        return [] // null;
+        return bump_anims; // null;
       }
     }
   }
@@ -437,7 +437,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
         // player is standing on the crate
         state.player.pos = new_player_pos;
         state.player.drop = magenta_crate_drop - 1;
-        return anims;
+        return [[], true]; // todo: anim
       }
     }
   }
@@ -445,7 +445,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): Anim[] {
   state.player.pos = new_player_pos;
   state.player.drop = new_player_drop;
 
-  return anims;
+  return [anims, true];
 }
 
 let last_timestamp = 0;
@@ -476,9 +476,11 @@ function every_frame(cur_timestamp: number) {
     let player_action = input_queue.shift();
     if (player_action !== undefined) {
       let prev_state = cloneLevelState(cur_state);
-      let anims = advanceState(cur_state, player_action);
+      let [anims, undoable] = advanceState(cur_state, player_action);
       visual_state.anims = visual_state.anims.concat(anims);
-      state_history.push(prev_state);
+      if (undoable) {
+        state_history.push(prev_state);
+      }
     }
   }
 
