@@ -9,8 +9,12 @@ import { canvasFromAscii } from "./kommon/spritePS";
 // game logic
 type LevelState = typeof cur_state;
 
-const DEBUG_START_AT_3 = true;
+const DEBUG_ALLOW_SKIP_WITH_QE = true;
+const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
+const CAN_TP_CRATE = true;
+const SWITCH_TP_AFTER_CRATE = true;
+const EXTRA_TP_CRATE_MOVE = false;
 
 let cur_state = {
   size: new Vec2(13, 13),
@@ -504,14 +508,34 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       if (magenta_crate_drop === state.player.drop) {
         // player is pushing the crate
         let new_magenta_crate_pos = state.magenta_1.pos.add(player_move);
-        if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
-        // if (!Vec2.inBounds(new_magenta_crate_pos, state.size)) return bump_anims;
-
-        let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
-        if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
-        anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
-        // state.magenta_1.pos = new_magenta_crate_pos;
-        // state.player.pos = new_player_pos;
+        if (!CAN_TP_CRATE) {
+          if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
+          let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+          if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
+          anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
+        } else {
+          let thing = thingAt(state, new_magenta_crate_pos);
+          if (thing === "magenta_3_entry") {
+            // TP crate
+            // TODO: anim
+            state.magenta_1.pos = state.magenta_3.exit_pos
+            if (EXTRA_TP_CRATE_MOVE) {
+              state.magenta_1.pos = state.magenta_3.exit_pos.add(player_move);
+            }
+            if (SWITCH_TP_AFTER_CRATE) {
+              let temp = state.magenta_3.exit_pos;
+              state.magenta_3.exit_pos = state.magenta_3.entry_pos;
+              state.magenta_3.entry_pos = temp;
+            }
+            // anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
+          } else if (thing !== 'none') {
+            return bump_anims;
+          } else {
+            let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+            if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
+            anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
+          }
+        }
       } else {
         // player is standing on the crate
         state.player.pos = new_player_pos;
@@ -545,6 +569,16 @@ function every_frame(cur_timestamp: number) {
 
   // player move
   if (visual_state.anims.length === 0) {
+    if (DEBUG_ALLOW_SKIP_WITH_QE) {
+      if (input.keyboard.wasPressed(KeyCode.KeyQ)) {
+        cur_state.player.layer = Math.max(0, cur_state.player.layer - 1);
+        cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
+      } else if (input.keyboard.wasPressed(KeyCode.KeyE)) {
+        cur_state.player.layer = Math.min(cur_state.downstairs_pos.length - 1, cur_state.player.layer + 1);
+        cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
+      }
+    }
+
     let player_action = input_queue.shift();
     if (player_action === "undo") {
       if (state_history.length > 0) {
