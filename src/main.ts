@@ -573,9 +573,11 @@ function every_frame(cur_timestamp: number) {
       if (input.keyboard.wasPressed(KeyCode.KeyQ)) {
         cur_state.player.layer = Math.max(0, cur_state.player.layer - 1);
         cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
+        cur_state.player.drop = 0;
       } else if (input.keyboard.wasPressed(KeyCode.KeyE)) {
         cur_state.player.layer = Math.min(cur_state.downstairs_pos.length - 1, cur_state.player.layer + 1);
         cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
+        cur_state.player.drop = 0;
       }
     }
 
