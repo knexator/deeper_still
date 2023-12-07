@@ -1,3 +1,8 @@
+// BUGS:
+// - moving from stairs allows jumping
+// - bad drawing order for stairs
+// - push tp exit over crate
+
 // import GUI from "lil-gui"
 
 import { Grid2D } from "./kommon/grid2D";
@@ -10,52 +15,54 @@ import { canvasFromAscii } from "./kommon/spritePS";
 type LevelState = typeof cur_state;
 
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
-const DEBUG_START_AT_3 = false;
+const DEBUG_START_AT_3 = true;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
 
 let cur_state = {
-  size: new Vec2(13, 13),
+  size: new Vec2(15, 15),
   holes: holesFromAscii(`
-....00.010001
-....00.010001
-....00.010001
-....00..11001
-....00..11111
-....00...0000
-....00...0000
-....000000000
-......0..00..
-......0......
-......0......
-......0......
-......0......
+..........00000
+..2222222200000
+22.020...200...
+2..020...221111
+2..020....00..1
+2..000....000.1
+2....0....000.1
+22...00000000.1
+112.....0..00.1
+0012....00....1
+2.122....00...1
+220012....0...1
+2222012...0...1
+2202012..111111
+2211022..10...2
   `),
   magenta_1: {
     pos: new Vec2(8, 5),
   },
   magenta_2: {
-    top_left: new Vec2(2, 2),
+    top_left: new Vec2(2, 3),
     horizontal: true,
     length: 5,
     offset: 0,
   },
   magenta_3: {
-    exit_pos: new Vec2(3, 6),
-    entry_pos: new Vec2(5, 4),
+    exit_pos: new Vec2(13, 13),
+    entry_pos: new Vec2(6, 1),
   },
   player: {
     layer: 0,
     drop: 0, // inverse of height
-    pos: new Vec2(4, 6),
+    pos: new Vec2(14, 0),
   },
   downstairs_pos: [
-    new Vec2(2, 4),
-    new Vec2(11, 11),
-    new Vec2(10, 1),
-    new Vec2(0, 0),
+    new Vec2(6, 9),
+    new Vec2(12, 11),
+    new Vec2(13, 1),
+    new Vec2(0, 12),
   ],
   max_visited_layer: 0,
 };
@@ -63,48 +70,51 @@ let cur_state = {
 if (DEBUG_START_AT_3) {
 
   cur_state = {
-    size: new Vec2(13, 13),
+    size: new Vec2(15, 15),
     holes: holesFromAscii(`
-    ....00.010001
-    ....00.010001
-    ....00.010001
-    ....00..11001
-    ....00..11111
-    ....00...0000
-    ....00...0000
-    ....000000000
-    ......0..00..
-    ......0......
-    ......0......
-    ......0......
-    ......0......
-    `),
+..........00000
+..2222222200000
+22.020...200...
+2..020...221111
+2..020....00..1
+2..000....000.1
+2....0....000.1
+22...00000000.1
+112.....0..00.1
+0012....00....1
+2.122....00...1
+220012....0...1
+2222012...0...1
+2202012..111111
+2211022..10...2
+  `),
     magenta_1: {
-      pos: new Vec2(10, 4),
+      pos: new Vec2(10, 3),
     },
     magenta_2: {
-      top_left: new Vec2(2, 2),
+      top_left: new Vec2(2, 3),
       horizontal: true,
       length: 5,
-      offset: 0,
+      offset: 3,
     },
     magenta_3: {
-      exit_pos: new Vec2(3, 6),
-      entry_pos: new Vec2(5, 4),
+      exit_pos: new Vec2(10, 1),
+      entry_pos: new Vec2(8, 13),
     },
     player: {
       layer: 2,
-      drop: 0, // inverse of height
-      pos: new Vec2(1, 1),
+      drop: 1, // inverse of height
+      pos: new Vec2(11, 1),
     },
     downstairs_pos: [
-      new Vec2(2, 4),
-      new Vec2(11, 11),
-      new Vec2(10, 1),
-      new Vec2(0, 0),
+      new Vec2(6, 9),
+      new Vec2(12, 11),
+      new Vec2(13, 1),
+      new Vec2(0, 12),
     ],
     max_visited_layer: 3,
   };
+
 }
 
 type Anim = {
@@ -573,11 +583,9 @@ function every_frame(cur_timestamp: number) {
       if (input.keyboard.wasPressed(KeyCode.KeyQ)) {
         cur_state.player.layer = Math.max(0, cur_state.player.layer - 1);
         cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
-        cur_state.player.drop = 0;
       } else if (input.keyboard.wasPressed(KeyCode.KeyE)) {
         cur_state.player.layer = Math.min(cur_state.downstairs_pos.length - 1, cur_state.player.layer + 1);
         cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
-        cur_state.player.drop = 0;
       }
     }
 
@@ -617,9 +625,11 @@ function every_frame(cur_timestamp: number) {
     bottommost = false;
   }
   if (cur_state.player.layer > 0) {
-    drawSprite(sprites.upstairs, cur_state.downstairs_pos[cur_state.player.layer - 1]);
+    const upstairs_pos = cur_state.downstairs_pos[cur_state.player.layer - 1];
+    drawSpriteAtDrop(cur_state.player.pos, sprites.upstairs, upstairs_pos, findDropAt(upstairs_pos, cur_state.max_visited_layer, cur_state.holes));
   }
-  drawSprite(sprites.downstairs, cur_state.downstairs_pos[cur_state.player.layer]);
+  const downstairs_pos = cur_state.downstairs_pos[cur_state.player.layer];
+  drawSpriteAtDrop(cur_state.player.pos, sprites.downstairs, downstairs_pos, findDropAt(downstairs_pos, cur_state.max_visited_layer, cur_state.holes));
   if (cur_state.max_visited_layer >= 1) {
     drawSprite(sprites.magenta_crate, cur_state.magenta_1.pos);
   }
