@@ -14,12 +14,13 @@ import { canvasFromAscii } from "./kommon/spritePS";
 type LevelState = typeof cur_state;
 
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
-const DEBUG_START_AT_3 = false;
+const DEBUG_START_AT_3 = true;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
 const DRAW_3D = false;
+const DRAW_WOBBLY_TP_EXIT = true;
 
 let cur_state = {
   size: new Vec2(15, 15),
@@ -651,11 +652,19 @@ function every_frame(cur_timestamp: number) {
     drawSprite(sprites.magenta_wire_right, new Vec2(cur_state.magenta_2.length - 1, 0).add(cur_state.magenta_2.top_left));
     drawSprite(sprites.magenta_crate, new Vec2(cur_state.magenta_2.offset, 0).add(cur_state.magenta_2.top_left));
   }
+  drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
   if (cur_state.max_visited_layer >= 3) {
     drawSprite(sprites.magenta_entry, cur_state.magenta_3.entry_pos);
-    drawSprite(sprites.magenta_exit, cur_state.magenta_3.exit_pos);
+    if (DRAW_WOBBLY_TP_EXIT) {
+      let offset = new Vec2(
+        .1 * Math.cos(last_timestamp * .0017 + .123),
+        .1 * Math.cos(last_timestamp * .002 + .321)
+      );
+      drawSizedSprite(sprites.magenta_exit, cur_state.magenta_3.exit_pos.add(offset), .95);
+    } else {
+      drawSprite(sprites.magenta_exit, cur_state.magenta_3.exit_pos);
+    }
   }
-  drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
 
   // cur_state.walls.forEachV((pos, is_wall) => drawSprite(is_wall ? sprites.wall : sprites.background, pos));
   // cur_state.targets.forEach(pos => drawSprite(sprites.target, pos));
@@ -694,6 +703,12 @@ function drawSprite(sprite: HTMLCanvasElement, { x, y }: Vec2) {
   ctx.drawImage(sprite,
     x * TILE_SIZE, y * TILE_SIZE,
     TILE_SIZE, TILE_SIZE);
+}
+
+function drawSizedSprite(sprite: HTMLCanvasElement, { x, y }: Vec2, perc: number) {
+  ctx.drawImage(sprite,
+    x * TILE_SIZE + (1 - perc) * .5 * TILE_SIZE, y * TILE_SIZE + (1 - perc) * .5 * TILE_SIZE,
+    TILE_SIZE * perc, TILE_SIZE * perc);
 }
 
 ////// library stuff
