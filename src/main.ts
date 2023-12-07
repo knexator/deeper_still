@@ -20,6 +20,7 @@ const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
+const DRAW_3D = false;
 
 let cur_state = {
   size: new Vec2(15, 15),
@@ -678,6 +679,10 @@ function every_frame(cur_timestamp: number) {
 }
 
 function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, drop: number) {
+  if (!DRAW_3D) {
+    drawSprite(sprite, pos);
+    return;
+  }
   let D = 50;
   let scale = D / (drop + D);
   let top_left_corner = pos.sub(eye_pos).scale(scale).add(eye_pos);
