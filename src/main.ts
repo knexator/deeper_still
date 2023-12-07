@@ -1,5 +1,4 @@
 // BUGS:
-// - moving from stairs allows jumping
 // - bad drawing order for stairs
 // - push tp exit into crate
 
@@ -415,7 +414,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       callback: (t, state) => {
         if (t >= .6) {
           state.player.layer = new_layer;
-          state.player.drop = 0; // TODO: bug here
+          state.player.drop = findDropAt(state.player.pos, state.max_visited_layer, state.holes, state.magenta_1.pos);
         }
       }
     });
@@ -435,7 +434,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       callback: (t, state) => {
         if (t >= .6) {
           state.player.layer = new_layer;
-          state.player.drop = 0; // TODO: bug here
+          state.player.drop = findDropAt(state.player.pos, state.max_visited_layer, state.holes, state.magenta_1.pos);
           state.max_visited_layer = Math.max(state.max_visited_layer, state.player.layer);
         }
       }
