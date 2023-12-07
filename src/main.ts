@@ -1,7 +1,7 @@
 // BUGS:
 // - moving from stairs allows jumping
 // - bad drawing order for stairs
-// - push tp exit over crate
+// - push tp exit into crate
 
 // import GUI from "lil-gui"
 
@@ -15,7 +15,7 @@ import { canvasFromAscii } from "./kommon/spritePS";
 type LevelState = typeof cur_state;
 
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
-const DEBUG_START_AT_3 = true;
+const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
@@ -306,13 +306,16 @@ function cloneLevelState(old_state: LevelState): LevelState {
   };
 }
 
-function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[]): number {
+function findDropAt(pos: Vec2, max_layer: number, holes: Grid2D<boolean>[], filled_hole: Vec2 | null): number {
   let cur_drop = 0;
   while (cur_drop < max_layer) {
     if (!holes[cur_drop].getV(pos)) {
       break;
     }
     cur_drop += 1;
+  }
+  if (filled_hole?.equals(pos)) {
+    cur_drop = Math.max(0, cur_drop - 1);
   }
   return cur_drop;
 }
@@ -440,29 +443,34 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
   }
 
   // TODO: drop anim
-  let new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
+  let new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes, cur_state.magenta_1.pos);
 
   if (state.max_visited_layer >= 3) {
     // mechanic 3: portal
     if (new_player_pos.equals(state.magenta_3.entry_pos)) {
       new_player_pos = state.magenta_3.exit_pos;
-      new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes);
+      new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes, cur_state.magenta_1.pos);
       state.player.pos = new_player_pos;
       state.player.drop = new_player_drop;
       state.magenta_3.exit_pos = state.magenta_3.entry_pos;
       state.magenta_3.entry_pos = new_player_pos;
       return [[], true]; // todo: portal anim
     } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
-      let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes);
+      let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes, cur_state.magenta_1.pos);
       if (!TP_EXIT_IGNORES_DEPTH && (magenta_crate_drop !== state.player.drop || state.player.drop !== new_player_drop)) {
         // can't stand on portal exit
         return bump_anims;
       }
       // player is pushing the crate
       let new_magenta_crate_pos = state.magenta_3.exit_pos.add(player_move);
-      if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
+      if (TP_EXIT_IGNORES_DEPTH) {
+        const thing = thingAt(state, new_magenta_crate_pos);
+        if (thing !== "magenta_1" && thing !== "none") return bump_anims;
+      } else {
+        if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
+      }
       if (!TP_EXIT_IGNORES_DEPTH) {
-        let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+        let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes, cur_state.magenta_1.pos);
         if (new_magenta_crate_drop < state.player.drop) return bump_anims; //null; // player can't push the crate up
       } else if (new_player_drop < state.player.drop) {
         return bump_anims;
@@ -508,19 +516,20 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
     }
   }
 
+  new_player_drop = findDropAt(new_player_pos, state.player.layer, state.holes, null);
   if (new_player_drop < state.player.drop) return bump_anims; // player can't move up
 
   if (state.max_visited_layer >= 1) {
     // mechanic 1: crate
     if (new_player_pos.equals(state.magenta_1.pos)) {
       // is the player pushing the crate or standing on it?
-      let magenta_crate_drop = findDropAt(state.magenta_1.pos, state.player.layer, state.holes);
+      let magenta_crate_drop = findDropAt(state.magenta_1.pos, state.player.layer, state.holes, null);
       if (magenta_crate_drop === state.player.drop) {
         // player is pushing the crate
         let new_magenta_crate_pos = state.magenta_1.pos.add(player_move);
         if (!CAN_TP_CRATE) {
           if (thingAt(state, new_magenta_crate_pos) !== "none") return bump_anims;
-          let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+          let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes, null);
           if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
           anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
         } else {
@@ -541,7 +550,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
           } else if (thing !== 'none') {
             return bump_anims;
           } else {
-            let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes);
+            let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes, null);
             if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
             anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
           }
@@ -626,10 +635,10 @@ function every_frame(cur_timestamp: number) {
   }
   if (cur_state.player.layer > 0) {
     const upstairs_pos = cur_state.downstairs_pos[cur_state.player.layer - 1];
-    drawSpriteAtDrop(cur_state.player.pos, sprites.upstairs, upstairs_pos, findDropAt(upstairs_pos, cur_state.max_visited_layer, cur_state.holes));
+    drawSpriteAtDrop(cur_state.player.pos, sprites.upstairs, upstairs_pos, findDropAt(upstairs_pos, cur_state.max_visited_layer, cur_state.holes, cur_state.magenta_1.pos));
   }
   const downstairs_pos = cur_state.downstairs_pos[cur_state.player.layer];
-  drawSpriteAtDrop(cur_state.player.pos, sprites.downstairs, downstairs_pos, findDropAt(downstairs_pos, cur_state.max_visited_layer, cur_state.holes));
+  drawSpriteAtDrop(cur_state.player.pos, sprites.downstairs, downstairs_pos, findDropAt(downstairs_pos, cur_state.max_visited_layer, cur_state.holes, cur_state.magenta_1.pos));
   if (cur_state.max_visited_layer >= 1) {
     drawSprite(sprites.magenta_crate, cur_state.magenta_1.pos);
   }
