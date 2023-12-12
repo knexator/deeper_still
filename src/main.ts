@@ -27,8 +27,10 @@ const palette = [
 
 const COLORS = {
   menu: {
-    text: palette[0],
-    background: palette[7],
+    text: palette[2],
+    background: palette[6],
+    title: palette[0],
+    // title: "magenta",
   }
 }
 
@@ -76,7 +78,7 @@ let cur_state = {
   player: {
     layer: 0,
     drop: 0, // inverse of height
-    pos: new Vec2(14, 0),
+    pos: new Vec2(12, 2),
   },
   downstairs_pos: [
     new Vec2(6, 9),
@@ -165,13 +167,13 @@ let font_sprites = new DefaultMap((color: string) => new DefaultMap((char: strin
 let sprites = {
   floors: [
     // hole sprites are 1x1 pixel sized
-    canvasFromAscii(["#E6E6EC"], '0'),
-    canvasFromAscii(["#A6A6BF"], '0'),
-    canvasFromAscii(["#535373"], '0'),
-    canvasFromAscii(["#333346"], '0'),
+    canvasFromAscii([palette[7]], '0'),
+    canvasFromAscii([palette[5]], '0'),
+    canvasFromAscii([palette[3]], '0'),
+    canvasFromAscii([palette[1]], '0'),
   ],
   player: canvasFromAscii(
-    ["#C1C1D2", "#8080A4", "#333346"],
+    [palette[6], palette[4], palette[2]],
     `
       .000.
       .000.
@@ -181,7 +183,7 @@ let sprites = {
     `
   ),
   downstairs: canvasFromAscii(
-    ["#E6E6EC", "#C1C1D2", "#8080A4", "#333346", "#0E0E12"],
+    [palette[7], palette[6], palette[4], palette[2], palette[0]],
     `
       00000
       11111
@@ -191,7 +193,7 @@ let sprites = {
     `
   ),
   upstairs: canvasFromAscii(
-    ["#C1C1D2"],
+    [palette[6]],
     `
       ..0..
       .0.0.
@@ -716,9 +718,11 @@ function every_frame(cur_timestamp: number) {
     drawSprite(sprites.magenta_wire_right, new Vec2(cur_state.magenta_2.length - 1, 0).add(cur_state.magenta_2.top_left));
     drawSprite(sprites.magenta_crate, new Vec2(cur_state.magenta_2.offset, 0).add(cur_state.magenta_2.top_left));
   }
-  drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
   if (cur_state.max_visited_layer >= 3) {
     drawSprite(sprites.magenta_entry, cur_state.magenta_3.entry_pos);
+  }
+  drawSpriteAtDrop(cur_state.player.pos, sprites.player, cur_state.player.pos, cur_state.player.drop);
+  if (cur_state.max_visited_layer >= 3) {
     if (DRAW_WOBBLY_TP_EXIT) {
       let offset = new Vec2(
         .1 * Math.cos(last_timestamp * .0017 + .123),
@@ -756,7 +760,7 @@ function* introSequence(): Generator<void, void, number> {
   while (true) {
     ctx.fillStyle = COLORS.menu.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawCenteredText("Deeper Still", 2, "magenta");
+    drawCenteredText("Deeper Still", 2, COLORS.menu.title);
     drawCenteredText("by Nabokos", 4);
     drawCenteredText("& knexator", 5);
     drawCenteredText("# start game #", 7);
@@ -772,7 +776,7 @@ function* introSequence(): Generator<void, void, number> {
   while (remaining_t > 0) {
     ctx.fillStyle = COLORS.menu.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawCenteredText("Deeper Still", 2, "magenta");
+    drawCenteredText("Deeper Still", 2, COLORS.menu.title);
     drawCenteredText("by Nabokos", 4);
     drawCenteredText("& knexator", 5);
     drawCenteredText("########### start game ###########", 7);
@@ -818,7 +822,7 @@ function* displayPSMessage(message: string) {
 function drawCenteredText(text: string, line_number: number, color: string = COLORS.menu.text) {
   let size = 3;
   let y = line_number * size * 16;
-  let offset = (canvas.width - (text.length * 6 - 1) * size) / 2;
+  let offset = Math.floor((canvas.width - (text.length * 6 - 1) * size) / 2);
   text.split('').forEach((char, k) => {
     ctx.drawImage(font_sprites.get(color).get(char), offset + k * 6 * size, y, 5 * size, 12 * size);
   });
