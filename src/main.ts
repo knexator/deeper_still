@@ -14,8 +14,19 @@ import { canvasFromAscii } from "./kommon/spritePS";
 // game logic
 type LevelState = typeof cur_state;
 
+const palette = [
+  "#0E0E12",
+  "#1A1A24",
+  "#333346",
+  "#535373",
+  "#8080A4",
+  "#A6A6BF",
+  "#C1C1D2",
+  "#E6E6EC",
+];
+
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
-const DEBUG_START_AT_3 = false;
+const DEBUG_START_AT_3 = true;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
@@ -104,8 +115,9 @@ if (DEBUG_START_AT_3) {
       entry_pos: new Vec2(8, 13),
     },
     player: {
-      layer: 2,
+      layer: 3,
       drop: 1, // inverse of height
+      // pos: new Vec2(1, 13),
       pos: new Vec2(11, 1),
     },
     downstairs_pos: [
@@ -140,17 +152,6 @@ let state_history: LevelState[] = [];
 
 // game graphics
 const TILE_SIZE = 40;
-
-const palette = [
-  "#0E0E12",
-  "#1A1A24",
-  "#333346",
-  "#535373",
-  "#8080A4",
-  "#A6A6BF",
-  "#C1C1D2",
-  "#E6E6EC",
-];
 
 let font_sprites = new DefaultMap((color: string) => new DefaultMap((char: string) => canvasFromAscii(["transparent", color], raw_font[char as keyof typeof raw_font])));
 
@@ -274,8 +275,9 @@ const DIRS = {
 type PlayerAction = "up" | "down" | "left" | "right" | "undo"
 let input_queue: PlayerAction[] = [];
 
-// let intro_sequence: ReturnType<typeof introSequence> | null = null;
 let intro_sequence: ReturnType<typeof introSequence> | null = introSequence();
+let outro_sequence: ReturnType<typeof outroSequence> | null = null;
+let won = false;
 
 document.addEventListener("keydown", (ev: KeyboardEvent) => {
   if (intro_sequence !== null) return;
@@ -443,9 +445,17 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
   // go downstairs
   if (new_player_pos.equals(state.downstairs_pos[state.player.layer])) {
     let new_layer = state.player.layer + 1;
-    if (state.player.layer >= state.downstairs_pos.length) {
-      // TODO: END GAME
-      return bump_anims;
+    if (state.player.layer + 1 >= state.downstairs_pos.length) {
+      anims.push({
+        duration: 0.1,
+        progress: 0,
+        callback: (t, _state) => {
+          if (t >= .6) {
+            won = true;
+          }
+        }
+      });
+      return [anims, true];
     }
     anims.push({
       duration: 0.1,
@@ -605,6 +615,24 @@ function every_frame(cur_timestamp: number) {
     return;
   }
 
+  if (won && outro_sequence === null) {
+    outro_sequence = outroSequence();
+    visual_state.anims = [];
+  }
+
+  if (outro_sequence !== null) {
+    if (outro_sequence.next(delta_time).done) {
+      outro_sequence = null;
+      intro_sequence = introSequence();
+      won = false;
+      cur_state = state_history.shift()!;
+      state_history = [];
+    }
+    requestAnimationFrame(every_frame);
+    return;
+  }
+
+
   // reset
   if (input.keyboard.wasPressed(KeyCode.KeyR)) {
     if (state_history.length > 0) {
@@ -618,9 +646,11 @@ function every_frame(cur_timestamp: number) {
     if (DEBUG_ALLOW_SKIP_WITH_QE) {
       if (input.keyboard.wasPressed(KeyCode.KeyQ)) {
         cur_state.player.layer = Math.max(0, cur_state.player.layer - 1);
+        cur_state.player.drop = 0;
         cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
       } else if (input.keyboard.wasPressed(KeyCode.KeyE)) {
         cur_state.player.layer = Math.min(cur_state.downstairs_pos.length - 1, cur_state.player.layer + 1);
+        cur_state.player.drop = 0;
         cur_state.max_visited_layer = Math.max(cur_state.max_visited_layer, cur_state.player.layer);
       }
     }
@@ -641,6 +671,7 @@ function every_frame(cur_timestamp: number) {
     }
   }
 
+  console.log(visual_state.anims);
   // animation progress
   visual_state.anims = visual_state.anims.filter(anim => {
     anim.progress = towards(anim.progress, 1, delta_time / anim.duration);
@@ -730,7 +761,7 @@ function* introSequence(): Generator<void, void, number> {
     }
   }
 
-  let remaining_t = .2;
+  let remaining_t = .3;
   while (remaining_t > 0) {
     ctx.fillStyle = palette[0];
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -744,11 +775,22 @@ function* introSequence(): Generator<void, void, number> {
     remaining_t -= dt;
   }
 
+  yield* displayPSMessage("You step inside to\nbegin your expedition.");
+  yield* displayPSMessage("The secrets of\nthe temple await...");
+}
+
+function* outroSequence(): Generator<void, void, number> {
+  let dt = 0;
+  yield* displayPSMessage("The curiosities continue\nas your exploration proceeds,\ndeeper still...");
+}
+
+function* displayPSMessage(message: string) {
+  let lines = message.split("\n");
+  let dt = 0;
   while (true) {
     ctx.fillStyle = palette[0];
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawCenteredText("You step inside to", 4);
-    drawCenteredText("begin your expedition.", 5);
+    lines.forEach((text, k) => drawCenteredText(text, 4 + k));
     drawCenteredText("X to continue", 10);
     dt = yield;
     if (input.keyboard.wasPressed(KeyCode.KeyX) || input.keyboard.wasPressed(KeyCode.Space)) {
@@ -756,34 +798,11 @@ function* introSequence(): Generator<void, void, number> {
     }
   }
 
-  remaining_t = .2;
+  let remaining_t = .2;
   while (remaining_t > 0) {
     ctx.fillStyle = palette[0];
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawCenteredText("You step inside to", 4);
-    drawCenteredText("begin your expedition.", 5);
-    dt = yield;
-    remaining_t -= dt;
-  }
-
-  while (true) {
-    ctx.fillStyle = palette[0];
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawCenteredText("The secrets of", 4);
-    drawCenteredText("the temple await...", 5);
-    drawCenteredText("X to continue", 10);
-    dt = yield;
-    if (input.keyboard.wasPressed(KeyCode.KeyX) || input.keyboard.wasPressed(KeyCode.Space)) {
-      break;
-    }
-  }
-
-  remaining_t = .2;
-  while (remaining_t > 0) {
-    ctx.fillStyle = palette[0];
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    drawCenteredText("The secrets of", 4);
-    drawCenteredText("the temple await...", 5);
+    lines.forEach((text, k) => drawCenteredText(text, 4 + k));
     dt = yield;
     remaining_t -= dt;
   }
