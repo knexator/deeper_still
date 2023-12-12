@@ -885,7 +885,7 @@ function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, d
   let scale = D / (drop + D);
   let top_left_corner = pos.sub(eye_pos).scale(scale).add(eye_pos);
   ctx.drawImage(sprite,
-    top_left_corner.x * TILE_SIZE, top_left_corner.y * TILE_SIZE,
+    Math.floor(top_left_corner.x * TILE_SIZE), Math.floor(top_left_corner.y * TILE_SIZE),
     Math.ceil(TILE_SIZE * scale), Math.ceil(TILE_SIZE * scale));
 }
 
@@ -911,7 +911,7 @@ function drawFloorBorder(eye_pos: Vec2, floor: number, pos: Vec2, dir: Vec2) {
 }
 
 function fillRect(rect: Rectangle) {
-  ctx.fillRect(rect.topLeft.x, rect.topLeft.y, rect.size.x, rect.size.y);
+  ctx.fillRect(Math.floor(rect.topLeft.x), Math.floor(rect.topLeft.y), Math.ceil(rect.size.x), Math.ceil(rect.size.y));
 }
 
 function drawSprite(sprite: HTMLCanvasElement, { x, y }: Vec2) {
