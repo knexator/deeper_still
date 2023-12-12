@@ -25,6 +25,13 @@ const palette = [
   "#E6E6EC",
 ];
 
+const COLORS = {
+  menu: {
+    text: palette[0],
+    background: palette[7],
+  }
+}
+
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
 const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
@@ -747,7 +754,7 @@ function* introSequence(): Generator<void, void, number> {
   let dt = 0;
 
   while (true) {
-    ctx.fillStyle = palette[0];
+    ctx.fillStyle = COLORS.menu.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawCenteredText("Deeper Still", 2, "magenta");
     drawCenteredText("by Nabokos", 4);
@@ -763,7 +770,7 @@ function* introSequence(): Generator<void, void, number> {
 
   let remaining_t = .3;
   while (remaining_t > 0) {
-    ctx.fillStyle = palette[0];
+    ctx.fillStyle = COLORS.menu.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     drawCenteredText("Deeper Still", 2, "magenta");
     drawCenteredText("by Nabokos", 4);
@@ -788,7 +795,7 @@ function* displayPSMessage(message: string) {
   let lines = message.split("\n");
   let dt = 0;
   while (true) {
-    ctx.fillStyle = palette[0];
+    ctx.fillStyle = COLORS.menu.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     lines.forEach((text, k) => drawCenteredText(text, 4 + k));
     drawCenteredText("X to continue", 10);
@@ -800,7 +807,7 @@ function* displayPSMessage(message: string) {
 
   let remaining_t = .2;
   while (remaining_t > 0) {
-    ctx.fillStyle = palette[0];
+    ctx.fillStyle = COLORS.menu.background;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     lines.forEach((text, k) => drawCenteredText(text, 4 + k));
     dt = yield;
@@ -808,7 +815,7 @@ function* displayPSMessage(message: string) {
   }
 }
 
-function drawCenteredText(text: string, line_number: number, color: string = palette[7]) {
+function drawCenteredText(text: string, line_number: number, color: string = COLORS.menu.text) {
   let size = 3;
   let y = line_number * size * 16;
   let offset = (canvas.width - (text.length * 6 - 1) * size) / 2;
