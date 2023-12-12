@@ -717,7 +717,7 @@ function every_frame(cur_timestamp: number) {
       if (draw_floor) {
         drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
         if (!bottommost) {
-          [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg].forEach(v => {
+          [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1,1), new Vec2(1,-1), new Vec2(-1,1), new Vec2(-1,-1)].forEach(v => {
             if (cur_state.holes[floor_drop].getV(pos.add(v), true)) {
               drawFloorBorder(floor_drop, pos, v);
             }
@@ -872,9 +872,7 @@ function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, d
 function drawFloorBorder(floor: number, pos: Vec2, dir: Vec2) {
   const floor_border_colors = [palette[6], palette[4], palette[2], palette[0]];
   ctx.fillStyle = floor_border_colors[floor];
-  let rect_size = (dir.x === 0) ?
-    new Vec2(1, CONFIG.BORDER_PERC) :
-    new Vec2(CONFIG.BORDER_PERC, 1);
+  let rect_size = new Vec2(dir.x === 0 ? 1 : CONFIG.BORDER_PERC, dir.y === 0 ? 1 : CONFIG.BORDER_PERC);
   let rect = Rectangle.fromParams({ center: pos.add(Vec2.both(.5)), size: rect_size});
   rect.topLeft = rect.topLeft.add(dir.scale(.5 - CONFIG.BORDER_PERC / 2)); 
   fillRect(new Rectangle(rect.topLeft.scale(TILE_SIZE), rect.size.scale(TILE_SIZE)));
