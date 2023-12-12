@@ -26,7 +26,7 @@ const palette = [
 ];
 
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
-const DEBUG_START_AT_3 = true;
+const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
