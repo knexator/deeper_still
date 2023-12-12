@@ -145,12 +145,20 @@ export class Vec2 {
         public readonly y: number = 0.0,
     ) { }
 
+    static both(v: number) {
+        return new Vec2(v,v);
+    }
+
     toString(): string {
         return `Vec2(${this.x}, ${this.y})`;
     }
 
     static readonly zero = new Vec2(0, 0);
     static readonly one = new Vec2(1, 1);
+    static readonly xpos = new Vec2(1, 0);
+    static readonly ypos = new Vec2(0, 1);
+    static readonly xneg = new Vec2(-1, 0);
+    static readonly yneg = new Vec2(0, -1);
 
     angleTo(other: Vec2): number {
         return Math.atan2(other.y - this.y, other.x - this.x);
@@ -211,49 +219,47 @@ export class Vec2 {
     }
 }
 
-// // todo: generalize, error check for too many args
-// export class Rectangle {
-//     constructor(
-//         public topLeft: Vec2,
-//         public size: Vec2) { }
+// todo: generalize, error check for too many args
+export class Rectangle {
+    constructor(
+        public topLeft: Vec2,
+        public size: Vec2) { }
 
-//     static readonly unit = new Rectangle(Vec2.zero, Vec2.one);
+    static readonly unit = new Rectangle(Vec2.zero, Vec2.one);
 
-//     static fromParams(params: {
-//         topLeft?: Vec2,
-//         center?: Vec2,
-//         bottomRight?: Vec2,
-//         size?: Vec2,
-//     }): Rectangle {
-//         let topLeft = new Vec2();
-//         let size = new Vec2();
+    static fromParams(params: {
+        topLeft?: Vec2,
+        center?: Vec2,
+        bottomRight?: Vec2,
+        size?: Vec2,
+    }): Rectangle {
+        // let size = new Vec2();
+        // let topLeft = new Vec2();
 
-//         if (params.topLeft !== undefined) {
-//             topLeft.copyFrom(params.topLeft);
-//             if (params.size !== undefined) {
-//                 size.copyFrom(params.size);
-//             } else if (params.bottomRight !== undefined) {
-//                 Vec2.sub(params.bottomRight, topLeft, size);
-//             } else if (params.center !== undefined) {
-//                 Vec2.sub(params.center, topLeft, size);
-//                 Vec2.scale(size, 2, size);
-//             } else {
-//                 throw new Error("not enough data to compute rect");
-//             }
-//             return new Rectangle(topLeft, size);
-//         } else if (params.center !== undefined) {
-//             if (params.size !== undefined) {
-//                 size.copyFrom(params.size);
-//             } else if (params.bottomRight !== undefined) {
-//                 Vec2.sub(params.bottomRight, params.center, size);
-//                 Vec2.scale(size, 2, size);
-//             } else {
-//                 throw new Error("not enough data to compute rect");
-//             }
-//             Vec2.sub(params.center, Vec2.scale(size, .5), topLeft);
-//             return new Rectangle(topLeft, size);
-//         } else {
-//             throw new Error("unimplemented");
-//         }
-//     }
-// }
+        if (params.topLeft !== undefined) {
+            let topLeft = params.topLeft;
+            if (params.size !== undefined) {
+                return new Rectangle(topLeft, params.size);
+            } else if (params.bottomRight !== undefined) {
+                return new Rectangle(topLeft, params.bottomRight.sub(topLeft));
+            } else if (params.center !== undefined) {
+                return new Rectangle(topLeft, params.center.sub(topLeft).scale(2));
+            } else {
+                throw new Error("not enough data to compute rect");
+            }
+        } else if (params.center !== undefined) {
+            let size: Vec2;
+            if (params.size !== undefined) {
+                size = params.size;
+            } else if (params.bottomRight !== undefined) {
+                size = params.bottomRight.sub(params.center).scale(2);
+            } else {
+                throw new Error("not enough data to compute rect");
+            }
+            let topLeft = params.center.sub(size.scale(.5));
+            return new Rectangle(topLeft, size);
+        } else {
+            throw new Error("unimplemented");
+        }
+    }
+}

@@ -8,7 +8,7 @@ import { raw_font } from "./font";
 import { Grid2D } from "./kommon/grid2D";
 import { Input, KeyCode } from "./kommon/input";
 import { DefaultMap, fromCount, zip2 } from "./kommon/kommon";
-import { Vec2, mod, towards } from "./kommon/math";
+import { Rectangle, Vec2, mod, towards } from "./kommon/math";
 import { canvasFromAscii } from "./kommon/spritePS";
 
 // game logic
@@ -42,6 +42,7 @@ const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
 const DRAW_3D = false;
 const DRAW_WOBBLY_TP_EXIT = true;
+const BORDER_PERC = .1;
 
 let cur_state = {
   size: new Vec2(15, 15),
@@ -272,6 +273,19 @@ canvas.width = cur_state.size.x * TILE_SIZE;
 canvas.height = cur_state.size.y * TILE_SIZE;
 
 ctx.imageSmoothingEnabled = false;
+
+// const audio_ctx = new AudioContext();
+
+// function generateSounds<T>(thing: T): {
+//   [K in keyof T]: Promise<number>;
+// } {
+//   //@ts-ignore
+//   return thing;
+// }
+
+// const sounds = generateSounds({
+//   step: fromCount(3, k => `./sounds/step_${k}.mp3`),
+// });
 
 // general stuff
 const DIRS = {
@@ -680,7 +694,6 @@ function every_frame(cur_timestamp: number) {
     }
   }
 
-  console.log(visual_state.anims);
   // animation progress
   visual_state.anims = visual_state.anims.filter(anim => {
     anim.progress = towards(anim.progress, 1, delta_time / anim.duration);
@@ -696,6 +709,13 @@ function every_frame(cur_timestamp: number) {
       let draw_floor = bottommost || !is_hole;
       if (draw_floor) {
         drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
+        if (!bottommost) {
+          [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg].forEach(v => {
+            if (cur_state.holes[floor_drop].getV(pos.add(v), true)) {
+              drawFloorBorder(floor_drop, pos, v);
+            }
+          })
+        }
       }
     });
     bottommost = false;
@@ -840,6 +860,21 @@ function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, d
   ctx.drawImage(sprite,
     top_left_corner.x * TILE_SIZE, top_left_corner.y * TILE_SIZE,
     Math.ceil(TILE_SIZE * scale), Math.ceil(TILE_SIZE * scale));
+}
+
+function drawFloorBorder(floor: number, pos: Vec2, dir: Vec2) {
+  const floor_border_colors = [palette[6], palette[4], palette[2], palette[0]];
+  ctx.fillStyle = floor_border_colors[floor];
+  let rect_size = (dir.x === 0) ?
+    new Vec2(1, BORDER_PERC) :
+    new Vec2(BORDER_PERC, 1);
+  let rect = Rectangle.fromParams({ center: pos.add(Vec2.both(.5)), size: rect_size});
+  rect.topLeft = rect.topLeft.add(dir.scale(.5 - BORDER_PERC / 2)); 
+  fillRect(new Rectangle(rect.topLeft.scale(TILE_SIZE), rect.size.scale(TILE_SIZE)));
+}
+
+function fillRect(rect: Rectangle) {
+  ctx.fillRect(rect.topLeft.x, rect.topLeft.y, rect.size.x, rect.size.y);
 }
 
 function drawSprite(sprite: HTMLCanvasElement, { x, y }: Vec2) {
