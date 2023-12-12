@@ -146,7 +146,7 @@ export class Vec2 {
     ) { }
 
     static both(v: number) {
-        return new Vec2(v,v);
+        return new Vec2(v, v);
     }
 
     toString(): string {

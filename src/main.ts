@@ -8,7 +8,7 @@ import { raw_font } from "./font";
 import { Grid2D } from "./kommon/grid2D";
 import { Input, KeyCode } from "./kommon/input";
 import { DefaultMap, fromCount, zip2 } from "./kommon/kommon";
-import { Rectangle, Vec2, mod, towards } from "./kommon/math";
+import { Rectangle, Vec2, mod, randomChoice, towards } from "./kommon/math";
 import { canvasFromAscii } from "./kommon/spritePS";
 
 // game logic
@@ -148,6 +148,11 @@ if (DEBUG_START_AT_3) {
 
 }
 
+const audio_ctx = new AudioContext();
+const sounds = await generateSounds({
+  step: fromCount(3, k => new URL(`./sounds/step_${k}.mp3`, import.meta.url).href),
+});
+
 type Anim = {
   duration: number,
   progress: number,
@@ -281,38 +286,52 @@ canvas.height = cur_state.size.y * TILE_SIZE;
 
 ctx.imageSmoothingEnabled = false;
 
-// type Audio = {play: () => void};
-// const audio_ctx = new AudioContext();
-// function generateSounds<T extends Record<string, string[]>>(thing: T): {
-//   [K in keyof T]: Promise<Audio>;
-// } {
-//   return Object.fromEntries(Object.entries(thing).map(([key, value]) => {
-//     let buffers = await loadSound(value);
-//     return [key, {
-//       play: () => playSound(buffer)
-//     }];
-//   }))
-//   //@ts-ignore
-//   return thing;
-// }
+type Audio = { play: () => void };
+async function generateSounds<T extends Record<string, string[]>>(thing: T): Promise<{
+  [K in keyof T]: Audio;
+}> {
+  let all_promises = Object.entries(thing).flatMap(([key, values]) => {
+    return values.map(async v => {
+      let sound = await loadSound(v);
+      return {
+        k: key,
+        s: sound,
+      };
+    });
+  });
+  let asdf = await Promise.all(all_promises);
+  let stuff = new Map<string, AudioBuffer[]>();
+  asdf.forEach(({ k, s }) => {
+    if (stuff.has(k)) {
+      stuff.get(k)!.push(s);
+    } else {
+      stuff.set(k, [s]);
+    }
+  });
+  // @ts-ignore
+  let result: { [K in keyof T]: Audio; } = {};
+  stuff.forEach((buffers: AudioBuffer[], key: string) => {
+    // @ts-ignore
+    result[key] = {
+      play: () => playSound(randomChoice(buffers))
+    };
+  });
+  return result;
+}
 
-// async function loadSound(url: string): Promise<AudioBuffer> {
-//   const response = await fetch(url);
-//   const arrayBuffer = await response.arrayBuffer();
-//   const audioBuffer = await audio_ctx.decodeAudioData(arrayBuffer);
-//   return audioBuffer;
-// }
+async function loadSound(url: string): Promise<AudioBuffer> {
+  const response = await fetch(url);
+  const arrayBuffer = await response.arrayBuffer();
+  const audioBuffer = await audio_ctx.decodeAudioData(arrayBuffer);
+  return audioBuffer;
+}
 
-// function playSound(audioBuffer: AudioBuffer) {
-//   var source = audio_ctx.createBufferSource();
-//   source.buffer = audioBuffer;                    // tell the source which sound to play
-//   source.connect(audio_ctx.destination);       // connect the source to the context's destination (the speakers)
-//   source.start();
-// }
-
-// const sounds = generateSounds({
-//   step: fromCount(3, k => new URL(`./sounds/step_${k}.mp3`, import.meta.url).href),
-// });
+function playSound(audioBuffer: AudioBuffer) {
+  var source = audio_ctx.createBufferSource();
+  source.buffer = audioBuffer;                    // tell the source which sound to play
+  source.connect(audio_ctx.destination);       // connect the source to the context's destination (the speakers)
+  source.start();
+}
 
 // general stuff
 const DIRS = {
@@ -714,6 +733,7 @@ function every_frame(cur_timestamp: number) {
     } else if (player_action !== undefined) {
       let prev_state = cloneLevelState(cur_state);
       let [anims, undoable] = advanceState(cur_state, player_action);
+      sounds.step.play();
       visual_state.anims = visual_state.anims.concat(anims);
       if (undoable) {
         state_history.push(prev_state);
