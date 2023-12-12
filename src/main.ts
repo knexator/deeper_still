@@ -2,7 +2,7 @@
 // - bad drawing order for stairs
 // - push tp exit into crate
 
-// import GUI from "lil-gui"
+import GUI from "lil-gui"
 
 import { raw_font } from "./font";
 import { Grid2D } from "./kommon/grid2D";
@@ -23,6 +23,7 @@ const palette = [
   "#A6A6BF",
   "#C1C1D2",
   "#E6E6EC",
+  "#FF00FF",
 ];
 
 const COLORS = {
@@ -42,7 +43,13 @@ const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
 const DRAW_3D = false;
 const DRAW_WOBBLY_TP_EXIT = true;
-const BORDER_PERC = .1;
+
+let CONFIG = {
+  BORDER_PERC: .1,
+};
+
+let gui = new GUI();
+gui.add(CONFIG, "BORDER_PERC", 0, 1);
 
 let cur_state = {
   size: new Vec2(15, 15),
@@ -204,7 +211,7 @@ let sprites = {
     `
   ),
   magenta_crate: canvasFromAscii(
-    ["#FF00FF"],
+    [palette[8]],
     `
       00000
       0...0
@@ -214,7 +221,7 @@ let sprites = {
     `
   ),
   magenta_wire_h: canvasFromAscii(
-    ["#FF00FF"],
+    [palette[8]],
     `
       .....
       .....
@@ -224,7 +231,7 @@ let sprites = {
     `
   ),
   magenta_wire_left: canvasFromAscii(
-    ["#FF00FF"],
+    [palette[8]],
     `
       .....
       .0...
@@ -234,7 +241,7 @@ let sprites = {
     `
   ),
   magenta_wire_right: canvasFromAscii(
-    ["#FF00FF"],
+    [palette[8]],
     `
       .....
       ...0.
@@ -244,7 +251,7 @@ let sprites = {
     `
   ),
   magenta_exit: canvasFromAscii(
-    ["#FF00FF"],
+    [palette[8]],
     `
       .000.
       00000
@@ -254,7 +261,7 @@ let sprites = {
     `
   ),
   magenta_entry: canvasFromAscii(
-    ["#FF00FF"],
+    [palette[8]],
     `
       .....
       .000.
@@ -866,10 +873,10 @@ function drawFloorBorder(floor: number, pos: Vec2, dir: Vec2) {
   const floor_border_colors = [palette[6], palette[4], palette[2], palette[0]];
   ctx.fillStyle = floor_border_colors[floor];
   let rect_size = (dir.x === 0) ?
-    new Vec2(1, BORDER_PERC) :
-    new Vec2(BORDER_PERC, 1);
+    new Vec2(1, CONFIG.BORDER_PERC) :
+    new Vec2(CONFIG.BORDER_PERC, 1);
   let rect = Rectangle.fromParams({ center: pos.add(Vec2.both(.5)), size: rect_size});
-  rect.topLeft = rect.topLeft.add(dir.scale(.5 - BORDER_PERC / 2)); 
+  rect.topLeft = rect.topLeft.add(dir.scale(.5 - CONFIG.BORDER_PERC / 2)); 
   fillRect(new Rectangle(rect.topLeft.scale(TILE_SIZE), rect.size.scale(TILE_SIZE)));
 }
 
