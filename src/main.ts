@@ -149,8 +149,11 @@ if (DEBUG_START_AT_3) {
 }
 
 const audio_ctx = new AudioContext();
-const sounds = await generateSounds({
+const SOUNDS = await generateSounds({
   step: fromCount(3, k => new URL(`./sounds/step_${k}.mp3`, import.meta.url).href),
+  bump: fromCount(1, k => new URL(`./sounds/bump_${k}.mp3`, import.meta.url).href),
+  push: fromCount(1, k => new URL(`./sounds/push_${k}.mp3`, import.meta.url).href),
+  stairs: fromCount(1, k => new URL(`./sounds/stairs_${k}.mp3`, import.meta.url).href),
 });
 
 type Anim = {
@@ -477,12 +480,13 @@ function thingAt(state: LevelState, pos: Vec2): Thing {
 // }
 
 // Our whole game logic lives inside this function
-function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], boolean] {
+function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], Audio[], boolean] {
   if (player_action === "undo") throw new Error("");
   let player_move = DIRS[player_action];
   let new_player_pos = state.player.pos.add(player_move);
   let anims = [makePlayerMoveAnim(state.player.pos, player_move)];
-  let bump_anims: [Anim[], boolean] = [[makePlayerBumpAnim(state.player.pos, player_move)], false];
+  let sounds: Audio[] = [SOUNDS.step];
+  let bump_anims: [Anim[], Audio[], boolean] = [[makePlayerBumpAnim(state.player.pos, player_move)], [SOUNDS.bump], false];
 
   // could be nice to have the whole logic here:
   // let thing_at_target = thingAt(state, new_player_pos);
@@ -508,7 +512,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
         }
       }
     });
-    return [anims, true];
+    return [anims, [SOUNDS.stairs], true];
   }
 
   // go downstairs
@@ -524,7 +528,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
           }
         }
       });
-      return [anims, true];
+      return [anims, [SOUNDS.stairs], true];
     }
     anims.push({
       duration: 0.1,
@@ -537,7 +541,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
         }
       }
     });
-    return [anims, true];
+    return [anims, [SOUNDS.stairs], true];
   }
 
   // TODO: drop anim
@@ -552,7 +556,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       state.player.drop = new_player_drop;
       state.magenta_3.exit_pos = state.magenta_3.entry_pos;
       state.magenta_3.entry_pos = new_player_pos;
-      return [[], true]; // todo: portal anim
+      return [[], [], true]; // todo: portal anim
     } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
       let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes, cur_state.magenta_1.pos);
       if (!TP_EXIT_IGNORES_DEPTH && (magenta_crate_drop !== state.player.drop || state.player.drop !== new_player_drop)) {
@@ -579,7 +583,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       state.magenta_3.exit_pos = new_magenta_crate_pos;
       state.player.pos = new_player_pos;
       state.player.drop = new_player_drop;
-      return [anims, true];
+      return [anims, sounds, true];
     }
   }
 
@@ -602,7 +606,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
           state.magenta_2.offset = new_offset;
           state.player.pos = new_player_pos;
           state.player.drop = 0;
-          return [anims, true];
+          return [anims, sounds, true];
         }
       }
     } else {
@@ -630,6 +634,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
           let new_magenta_crate_drop = findDropAt(new_magenta_crate_pos, state.player.layer, state.holes, null);
           if (new_magenta_crate_drop < state.player.drop) return bump_anims; // player can't push the crate up
           anims.push(makeMoveAnim(state.magenta_1.pos, player_move, (state, v) => { state.magenta_1.pos = v }))
+          sounds.push(SOUNDS.push);
         } else {
           let thing = thingAt(state, new_magenta_crate_pos);
           if (thing === "magenta_3_entry") {
@@ -657,7 +662,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
         // player is standing on the crate
         state.player.pos = new_player_pos;
         state.player.drop = magenta_crate_drop - 1;
-        return [anims, true];
+        return [anims, sounds, true];
       }
     }
   }
@@ -665,7 +670,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
   state.player.pos = new_player_pos;
   state.player.drop = new_player_drop;
 
-  return [anims, true];
+  return [anims, sounds, true];
 }
 
 let last_timestamp = 0;
@@ -732,8 +737,8 @@ function every_frame(cur_timestamp: number) {
       input_queue = [];
     } else if (player_action !== undefined) {
       let prev_state = cloneLevelState(cur_state);
-      let [anims, undoable] = advanceState(cur_state, player_action);
-      sounds.step.play();
+      let [anims, sounds, undoable] = advanceState(cur_state, player_action);
+      sounds.forEach(x => x.play());
       visual_state.anims = visual_state.anims.concat(anims);
       if (undoable) {
         state_history.push(prev_state);
