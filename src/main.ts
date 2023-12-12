@@ -41,7 +41,7 @@ const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
-const DRAW_3D = false;
+const DRAW_3D = true;
 const DRAW_WOBBLY_TP_EXIT = true;
 
 let CONFIG = {
@@ -281,17 +281,37 @@ canvas.height = cur_state.size.y * TILE_SIZE;
 
 ctx.imageSmoothingEnabled = false;
 
+// type Audio = {play: () => void};
 // const audio_ctx = new AudioContext();
-
-// function generateSounds<T>(thing: T): {
-//   [K in keyof T]: Promise<number>;
+// function generateSounds<T extends Record<string, string[]>>(thing: T): {
+//   [K in keyof T]: Promise<Audio>;
 // } {
+//   return Object.fromEntries(Object.entries(thing).map(([key, value]) => {
+//     let buffers = await loadSound(value);
+//     return [key, {
+//       play: () => playSound(buffer)
+//     }];
+//   }))
 //   //@ts-ignore
 //   return thing;
 // }
 
+// async function loadSound(url: string): Promise<AudioBuffer> {
+//   const response = await fetch(url);
+//   const arrayBuffer = await response.arrayBuffer();
+//   const audioBuffer = await audio_ctx.decodeAudioData(arrayBuffer);
+//   return audioBuffer;
+// }
+
+// function playSound(audioBuffer: AudioBuffer) {
+//   var source = audio_ctx.createBufferSource();
+//   source.buffer = audioBuffer;                    // tell the source which sound to play
+//   source.connect(audio_ctx.destination);       // connect the source to the context's destination (the speakers)
+//   source.start();
+// }
+
 // const sounds = generateSounds({
-//   step: fromCount(3, k => `./sounds/step_${k}.mp3`),
+//   step: fromCount(3, k => new URL(`./sounds/step_${k}.mp3`, import.meta.url).href),
 // });
 
 // general stuff
@@ -717,9 +737,9 @@ function every_frame(cur_timestamp: number) {
       if (draw_floor) {
         drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
         if (!bottommost) {
-          [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1,1), new Vec2(1,-1), new Vec2(-1,1), new Vec2(-1,-1)].forEach(v => {
-            if (cur_state.holes[floor_drop].getV(pos.add(v), true)) {
-              drawFloorBorder(floor_drop, pos, v);
+          [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1, 1), new Vec2(1, -1), new Vec2(-1, 1), new Vec2(-1, -1)].forEach(v => {
+            if (cur_state.holes[floor_drop].getV(pos.add(v), false)) {
+              drawFloorBorder(cur_state.player.pos, floor_drop, pos, v);
             }
           })
         }
@@ -869,12 +889,24 @@ function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, d
     Math.ceil(TILE_SIZE * scale), Math.ceil(TILE_SIZE * scale));
 }
 
-function drawFloorBorder(floor: number, pos: Vec2, dir: Vec2) {
+function drawFloorBorder(eye_pos: Vec2, floor: number, pos: Vec2, dir: Vec2) {
   const floor_border_colors = [palette[6], palette[4], palette[2], palette[0]];
   ctx.fillStyle = floor_border_colors[floor];
   let rect_size = new Vec2(dir.x === 0 ? 1 : CONFIG.BORDER_PERC, dir.y === 0 ? 1 : CONFIG.BORDER_PERC);
-  let rect = Rectangle.fromParams({ center: pos.add(Vec2.both(.5)), size: rect_size});
-  rect.topLeft = rect.topLeft.add(dir.scale(.5 - CONFIG.BORDER_PERC / 2)); 
+  let rect = Rectangle.fromParams({ center: pos.add(Vec2.both(.5)), size: rect_size });
+  rect.topLeft = rect.topLeft.add(dir.scale(.5 - CONFIG.BORDER_PERC / 2));
+
+  if (DRAW_3D) {
+    let drop = floor;
+    let D = 50;
+    let scale = D / (drop + D);
+    let raw_top_left = pos.sub(eye_pos).scale(scale).add(eye_pos);
+    let raw_size = Vec2.both(scale);
+    rect = new Rectangle(
+      rect.topLeft.sub(pos.sub(raw_top_left)),
+      rect.size.mul(raw_size),
+    );
+  }
   fillRect(new Rectangle(rect.topLeft.scale(TILE_SIZE), rect.size.scale(TILE_SIZE)));
 }
 
