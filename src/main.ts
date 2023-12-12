@@ -4,9 +4,10 @@
 
 // import GUI from "lil-gui"
 
+import { raw_font } from "./font";
 import { Grid2D } from "./kommon/grid2D";
 import { Input, KeyCode } from "./kommon/input";
-import { fromCount, zip2 } from "./kommon/kommon";
+import { DefaultMap, fromCount, zip2 } from "./kommon/kommon";
 import { Vec2, mod, towards } from "./kommon/math";
 import { canvasFromAscii } from "./kommon/spritePS";
 
@@ -14,7 +15,7 @@ import { canvasFromAscii } from "./kommon/spritePS";
 type LevelState = typeof cur_state;
 
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
-const DEBUG_START_AT_3 = true;
+const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
@@ -140,6 +141,19 @@ let state_history: LevelState[] = [];
 // game graphics
 const TILE_SIZE = 40;
 
+const palette = [
+  "#0E0E12",
+  "#1A1A24",
+  "#333346",
+  "#535373",
+  "#8080A4",
+  "#A6A6BF",
+  "#C1C1D2",
+  "#E6E6EC",
+];
+
+let font_sprites = new DefaultMap((color: string) => new DefaultMap((char: string) => canvasFromAscii(["transparent", color], raw_font[char as keyof typeof raw_font])));
+
 let sprites = {
   floors: [
     // hole sprites are 1x1 pixel sized
@@ -260,7 +274,11 @@ const DIRS = {
 type PlayerAction = "up" | "down" | "left" | "right" | "undo"
 let input_queue: PlayerAction[] = [];
 
+// let intro_sequence: ReturnType<typeof introSequence> | null = null;
+let intro_sequence: ReturnType<typeof introSequence> | null = introSequence();
+
 document.addEventListener("keydown", (ev: KeyboardEvent) => {
+  if (intro_sequence !== null) return;
   let action = mapKeyToAction(ev.code, {
     "up": [KeyCode.ArrowUp, KeyCode.KeyW],
     "down": [KeyCode.ArrowDown, KeyCode.KeyS],
@@ -579,6 +597,14 @@ function every_frame(cur_timestamp: number) {
   last_timestamp = cur_timestamp;
   input.startFrame();
 
+  if (intro_sequence !== null) {
+    if (intro_sequence.next(delta_time).done) {
+      intro_sequence = null;
+    }
+    requestAnimationFrame(every_frame);
+    return;
+  }
+
   // reset
   if (input.keyboard.wasPressed(KeyCode.KeyR)) {
     if (state_history.length > 0) {
@@ -686,6 +712,93 @@ function every_frame(cur_timestamp: number) {
   requestAnimationFrame(every_frame);
 }
 
+function* introSequence(): Generator<void, void, number> {
+  let dt = 0;
+
+  while (true) {
+    ctx.fillStyle = palette[0];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCenteredText("Deeper Still", 2, "magenta");
+    drawCenteredText("by Nabokos", 4);
+    drawCenteredText("& knexator", 5);
+    drawCenteredText("# start game #", 7);
+    drawCenteredText("arrow keys to move", 9);
+    drawCenteredText("Z to undo, R to restart", 10);
+    dt = yield;
+    if (input.keyboard.wasPressed(KeyCode.KeyX) || input.keyboard.wasPressed(KeyCode.Space)) {
+      break;
+    }
+  }
+
+  let remaining_t = .2;
+  while (remaining_t > 0) {
+    ctx.fillStyle = palette[0];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCenteredText("Deeper Still", 2, "magenta");
+    drawCenteredText("by Nabokos", 4);
+    drawCenteredText("& knexator", 5);
+    drawCenteredText("########### start game ###########", 7);
+    drawCenteredText("arrow keys to move", 9);
+    drawCenteredText("Z to undo, R to restart", 10);
+    dt = yield;
+    remaining_t -= dt;
+  }
+
+  while (true) {
+    ctx.fillStyle = palette[0];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCenteredText("You step inside to", 4);
+    drawCenteredText("begin your expedition.", 5);
+    drawCenteredText("X to continue", 10);
+    dt = yield;
+    if (input.keyboard.wasPressed(KeyCode.KeyX) || input.keyboard.wasPressed(KeyCode.Space)) {
+      break;
+    }
+  }
+
+  remaining_t = .2;
+  while (remaining_t > 0) {
+    ctx.fillStyle = palette[0];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCenteredText("You step inside to", 4);
+    drawCenteredText("begin your expedition.", 5);
+    dt = yield;
+    remaining_t -= dt;
+  }
+
+  while (true) {
+    ctx.fillStyle = palette[0];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCenteredText("The secrets of", 4);
+    drawCenteredText("the temple await...", 5);
+    drawCenteredText("X to continue", 10);
+    dt = yield;
+    if (input.keyboard.wasPressed(KeyCode.KeyX) || input.keyboard.wasPressed(KeyCode.Space)) {
+      break;
+    }
+  }
+
+  remaining_t = .2;
+  while (remaining_t > 0) {
+    ctx.fillStyle = palette[0];
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    drawCenteredText("The secrets of", 4);
+    drawCenteredText("the temple await...", 5);
+    dt = yield;
+    remaining_t -= dt;
+  }
+}
+
+function drawCenteredText(text: string, line_number: number, color: string = palette[7]) {
+  let size = 3;
+  let y = line_number * size * 16;
+  let offset = (canvas.width - (text.length * 6 - 1) * size) / 2;
+  text.split('').forEach((char, k) => {
+    ctx.drawImage(font_sprites.get(color).get(char), offset + k * 6 * size, y, 5 * size, 12 * size);
+  });
+
+}
+
 function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, drop: number) {
   if (!DRAW_3D) {
     drawSprite(sprite, pos);
@@ -728,9 +841,13 @@ function at<T>(arr: T[], index: number): T {
   return arr[mod(index, arr.length)];
 }
 
-const loading_screen_element = document.querySelector<HTMLDivElement>("#loading_screen")!;
-loading_screen_element.innerText = "Press to start!";
-document.addEventListener("pointerdown", _event => {
-  loading_screen_element.style.opacity = "0";
+const loading_screen_element = document.querySelector<HTMLDivElement>("#loading_screen");
+if (loading_screen_element) {
+  loading_screen_element.innerText = "Press to start!";
+  document.addEventListener("pointerdown", _event => {
+    loading_screen_element.style.opacity = "0";
+    requestAnimationFrame(every_frame);
+  }, { once: true });
+} else {
   requestAnimationFrame(every_frame);
-}, { once: true });
+}
