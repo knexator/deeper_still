@@ -41,15 +41,18 @@ const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
 const EXTRA_TP_CRATE_MOVE = false;
-const DRAW_3D = true;
 const DRAW_WOBBLY_TP_EXIT = true;
 
 let CONFIG = {
-  BORDER_PERC: .1,
+  DRAW_ALL_BORDERS: true,
+  BORDER_PERC: .101,
+  DRAW_3D: false,
 };
 
 let gui = new GUI();
 gui.add(CONFIG, "BORDER_PERC", 0, 1);
+gui.add(CONFIG, "DRAW_ALL_BORDERS");
+gui.add(CONFIG, "DRAW_3D");
 
 let cur_state = {
   size: new Vec2(15, 15),
@@ -755,22 +758,35 @@ function every_frame(cur_timestamp: number) {
 
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+  let seen_floor = Grid2D.initV(cur_state.size, p => 0);
   let bottommost = true;
   for (let floor_drop = cur_state.player.layer; floor_drop >= 0; floor_drop--) {
     cur_state.holes[floor_drop].forEachV((pos, is_hole) => {
       let draw_floor = bottommost || !is_hole;
       if (draw_floor) {
         drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
-        if (!bottommost) {
+        if (!bottommost && !CONFIG.DRAW_ALL_BORDERS) {
           [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1, 1), new Vec2(1, -1), new Vec2(-1, 1), new Vec2(-1, -1)].forEach(v => {
             if (cur_state.holes[floor_drop].getV(pos.add(v), false)) {
               drawFloorBorder(cur_state.player.pos, floor_drop, pos, v);
             }
           })
         }
+        if (CONFIG.DRAW_ALL_BORDERS) {
+          seen_floor.setV(pos, floor_drop);
+        }
       }
     });
     bottommost = false;
+  }
+  if (CONFIG.DRAW_ALL_BORDERS) {
+    seen_floor.forEachV((pos, seen) => {
+      [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1, 1), new Vec2(1, -1), new Vec2(-1, 1), new Vec2(-1, -1)].forEach(v => {
+        if (seen_floor.getV(pos.add(v), seen) !== seen) {
+          drawFloorBorder(cur_state.player.pos, seen, pos, v);
+        }
+      })
+    })
   }
   if (cur_state.player.layer > 0) {
     const upstairs_pos = cur_state.downstairs_pos[cur_state.player.layer - 1];
@@ -902,7 +918,7 @@ function drawCenteredText(text: string, line_number: number, color: string = COL
 }
 
 function drawSpriteAtDrop(eye_pos: Vec2, sprite: HTMLCanvasElement, pos: Vec2, drop: number) {
-  if (!DRAW_3D) {
+  if (!CONFIG.DRAW_3D) {
     drawSprite(sprite, pos);
     return;
   }
@@ -921,7 +937,7 @@ function drawFloorBorder(eye_pos: Vec2, floor: number, pos: Vec2, dir: Vec2) {
   let rect = Rectangle.fromParams({ center: pos.add(Vec2.both(.5)), size: rect_size });
   rect.topLeft = rect.topLeft.add(dir.scale(.5 - CONFIG.BORDER_PERC / 2));
 
-  if (DRAW_3D) {
+  if (CONFIG.DRAW_3D) {
     let drop = floor;
     let D = 50;
     let scale = D / (drop + D);
