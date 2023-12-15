@@ -44,6 +44,7 @@ const EXTRA_TP_CRATE_MOVE = false;
 const DRAW_WOBBLY_TP_EXIT = true;
 
 let CONFIG = {
+  SCREEN_BORDERS: true,
   DRAW_ALL_BORDERS: true,
   BORDER_PERC: .101,
   DRAW_3D: false,
@@ -51,6 +52,7 @@ let CONFIG = {
 
 let gui = new GUI();
 gui.add(CONFIG, "BORDER_PERC", 0, 1);
+gui.add(CONFIG, "SCREEN_BORDERS");
 gui.add(CONFIG, "DRAW_ALL_BORDERS");
 gui.add(CONFIG, "DRAW_3D");
 
@@ -767,7 +769,7 @@ function every_frame(cur_timestamp: number) {
         drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
         if (!bottommost && !CONFIG.DRAW_ALL_BORDERS) {
           [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1, 1), new Vec2(1, -1), new Vec2(-1, 1), new Vec2(-1, -1)].forEach(v => {
-            if (cur_state.holes[floor_drop].getV(pos.add(v), false)) {
+            if (cur_state.holes[floor_drop].getV(pos.add(v), CONFIG.SCREEN_BORDERS)) {
               drawFloorBorder(cur_state.player.pos, floor_drop, pos, v);
             }
           })
@@ -782,7 +784,7 @@ function every_frame(cur_timestamp: number) {
   if (CONFIG.DRAW_ALL_BORDERS) {
     seen_floor.forEachV((pos, seen) => {
       [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1, 1), new Vec2(1, -1), new Vec2(-1, 1), new Vec2(-1, -1)].forEach(v => {
-        if (seen_floor.getV(pos.add(v), seen) !== seen) {
+        if (seen_floor.getV(pos.add(v), CONFIG.SCREEN_BORDERS ? -1 : seen) !== seen) {
           drawFloorBorder(cur_state.player.pos, seen, pos, v);
         }
       })
