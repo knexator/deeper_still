@@ -192,10 +192,18 @@ export class KeyboardListener {
 
     private onKeyDown(ev: KeyboardEvent) {
         this.pressed.add(ev.code as KeyCode);
+        if (ev.code.includes("Arrow")) {
+            ev.preventDefault();
+            return false;
+        }
     }
 
     private onKeyUp(ev: KeyboardEvent) {
         this.pressed.delete(ev.code as KeyCode);
+        if (ev.code.includes("Arrow")) {
+            ev.preventDefault();
+            return false;
+        }
     }
 }
 
