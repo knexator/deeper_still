@@ -37,7 +37,7 @@ const COLORS = {
 
 let DEBUG = true;
 
-const DEBUG_ALLOW_SKIP_WITH_QE = true;
+const DEBUG_ALLOW_SKIP_WITH_QE = DEBUG;
 const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
@@ -167,6 +167,7 @@ const SOUNDS = await generateSounds({
   bump: fromCount(1, k => new URL(`./sounds/bump_${k}.mp3`, import.meta.url).href),
   push: fromCount(1, k => new URL(`./sounds/push_${k}.mp3`, import.meta.url).href),
   stairs: fromCount(1, k => new URL(`./sounds/stairs_${k}.mp3`, import.meta.url).href),
+  tp: [new URL(`./sounds/tp.mp3`, import.meta.url).href],
 });
 
 type Anim = {
@@ -569,7 +570,7 @@ function advanceState(state: LevelState, player_action: PlayerAction): [Anim[], 
       state.player.drop = new_player_drop;
       state.magenta_3.exit_pos = state.magenta_3.entry_pos;
       state.magenta_3.entry_pos = new_player_pos;
-      return [[], [], true]; // todo: portal anim
+      return [[], [SOUNDS.tp], true]; // todo: portal anim
     } else if (new_player_pos.equals(state.magenta_3.exit_pos)) {
       let magenta_crate_drop = findDropAt(state.magenta_3.exit_pos, state.player.layer, state.holes, cur_state.magenta_1.pos);
       if (!TP_EXIT_IGNORES_DEPTH && (magenta_crate_drop !== state.player.drop || state.player.drop !== new_player_drop)) {
