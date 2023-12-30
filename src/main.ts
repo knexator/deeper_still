@@ -166,7 +166,8 @@ const SOUNDS = await generateSounds({
   step: fromCount(3, k => new URL(`./sounds/new_step_${k}.mp3`, import.meta.url).href),
   bump: fromCount(1, k => new URL(`./sounds/bump_${k}.mp3`, import.meta.url).href),
   push: fromCount(1, k => new URL(`./sounds/push_${k}.mp3`, import.meta.url).href),
-  stairs: fromCount(1, k => new URL(`./sounds/stairs_${k}.mp3`, import.meta.url).href),
+  // stairs: fromCount(1, k => new URL(`./sounds/stairs_${k}.mp3`, import.meta.url).href),
+  stairs: fromCount(3, k => new URL(`./sounds/new_step_${k}.mp3`, import.meta.url).href),
   tp: [new URL(`./sounds/tp.mp3`, import.meta.url).href],
 });
 
@@ -752,6 +753,7 @@ function every_frame(cur_timestamp: number) {
     } else if (player_action !== undefined) {
       let prev_state = cloneLevelState(cur_state);
       let [anims, sounds, undoable] = advanceState(cur_state, player_action);
+      console.log(sounds);
       sounds.forEach(x => x.play());
       visual_state.anims = visual_state.anims.concat(anims);
       if (undoable) {
