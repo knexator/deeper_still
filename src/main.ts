@@ -35,6 +35,8 @@ const COLORS = {
   }
 }
 
+let DEBUG = true;
+
 const DEBUG_ALLOW_SKIP_WITH_QE = true;
 const DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
@@ -50,11 +52,17 @@ let CONFIG = {
   DRAW_3D: false,
 };
 
-let gui = new GUI();
-gui.add(CONFIG, "BORDER_PERC", 0, 1);
-gui.add(CONFIG, "SCREEN_BORDERS");
-gui.add(CONFIG, "DRAW_ALL_BORDERS");
-gui.add(CONFIG, "DRAW_3D");
+if (import.meta.env.MODE !== 'development') {
+  DEBUG = false;
+}
+
+if (DEBUG) {
+  let gui = new GUI();
+  gui.add(CONFIG, "BORDER_PERC", 0, 1);
+  gui.add(CONFIG, "SCREEN_BORDERS");
+  gui.add(CONFIG, "DRAW_ALL_BORDERS");
+  gui.add(CONFIG, "DRAW_3D");
+}
 
 let cur_state = {
   size: new Vec2(15, 15),
@@ -155,7 +163,7 @@ if (DEBUG_START_AT_3) {
 
 const audio_ctx = new AudioContext();
 const SOUNDS = await generateSounds({
-  step: fromCount(3, k => new URL(`./sounds/step_${k}.mp3`, import.meta.url).href),
+  step: fromCount(3, k => new URL(`./sounds/new_step_${k}.mp3`, import.meta.url).href),
   bump: fromCount(1, k => new URL(`./sounds/bump_${k}.mp3`, import.meta.url).href),
   push: fromCount(1, k => new URL(`./sounds/push_${k}.mp3`, import.meta.url).href),
   stairs: fromCount(1, k => new URL(`./sounds/stairs_${k}.mp3`, import.meta.url).href),
@@ -264,7 +272,7 @@ let sprites = {
     `
   ),
   magenta_exit: canvasFromAscii(
-    [palette[8]],
+    ['#ff00ff9f'],
     `
       .000.
       00000
@@ -769,7 +777,7 @@ function every_frame(cur_timestamp: number) {
         drawSpriteAtDrop(cur_state.player.pos, sprites.floors[floor_drop], pos, floor_drop);
         if (!bottommost && !CONFIG.DRAW_ALL_BORDERS) {
           [Vec2.xpos, Vec2.xneg, Vec2.ypos, Vec2.yneg, new Vec2(1, 1), new Vec2(1, -1), new Vec2(-1, 1), new Vec2(-1, -1)].forEach(v => {
-            if (cur_state.holes[floor_drop].getV(pos.add(v), CONFIG.SCREEN_BORDERS)) {
+            if (cur_state.holes[floor_drop].getV(pos.add(v), false)) {
               drawFloorBorder(cur_state.player.pos, floor_drop, pos, v);
             }
           })
