@@ -37,8 +37,8 @@ const COLORS = {
 
 let DEBUG = true;
 
-const DEBUG_ALLOW_SKIP_WITH_QE = DEBUG;
-const DEBUG_START_AT_3 = false;
+let DEBUG_ALLOW_SKIP_WITH_QE = true;
+let DEBUG_START_AT_3 = false;
 const TP_EXIT_IGNORES_DEPTH = true;
 const CAN_TP_CRATE = true;
 const SWITCH_TP_AFTER_CRATE = true;
@@ -62,6 +62,9 @@ if (DEBUG) {
   gui.add(CONFIG, "SCREEN_BORDERS");
   gui.add(CONFIG, "DRAW_ALL_BORDERS");
   gui.add(CONFIG, "DRAW_3D");
+} else {
+  DEBUG_ALLOW_SKIP_WITH_QE = false;
+  DEBUG_START_AT_3 = false;
 }
 
 let cur_state = {
